@@ -10,6 +10,12 @@
   <p><strong>Status:</strong> {{ 'Completed' if session['completed_at'] else 'Pending' }}</p>
 </div>
 
+<div class="card">
+  <h3>Coach cue</h3>
+  <p class="muted">{{ avatar.name }} · guidance: {{ avatar.guidance_level|title }}</p>
+  <p>{{ coach_cue }}</p>
+</div>
+
 {% if media %}
 <div class="card">
   <h3>Attached media</h3>

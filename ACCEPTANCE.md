@@ -205,3 +205,29 @@
 - template count increases after importing a synthetic/new template,
 - traversal ZIPs are rejected,
 - player page shows the **Open media** button for imported block media.
+
+## Codex Preview Readiness Checklist (2026-03-02)
+- [x] Flat repo root; no extra wrapper folder.
+- [x] Root includes `requirements.txt`, `app_server.py`, `run_server.py`, `templates/`, `tools/`, `tests/`.
+- [x] Linux/Codex start path available (`start.sh`, `Procfile`) with bind `0.0.0.0` and env `PORT` support.
+- [x] Windows canonical boot scripts + `_BAT` wrappers remain valid.
+- [x] ZIP artifacts allowed only under `RELEASES/`; guard fails ZIPs elsewhere.
+- [x] Prompt 3 media link behavior retained in session player.
+- [x] Regression tests cover `/templates` and `/content-packs` endpoints.
+- [x] Test harness runs `tools/check_structure.py`, `pytest tests_smoke.py`, `pytest smoke_test.py`.
+
+
+## Library Journey
+**Steps**
+1. Open `/library`.
+2. Filter by discipline + minutes + level.
+3. Click **Preview** for a template and confirm block instructions/targets show.
+4. Click **Start as Manual Session** and complete it.
+5. If a plan exists, click **Add to plan day** from a library card.
+
+**Accept if**
+- `/library` loads with filter controls and template cards,
+- preview displays clear instructions and targets,
+- manual session is created from library action,
+- template can be appended to current plan day list,
+- session completion appears in dashboard analytics.

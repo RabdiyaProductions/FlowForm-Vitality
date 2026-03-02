@@ -216,3 +216,16 @@
 - [x] Prompt 3 media link behavior retained in session player.
 - [x] Regression tests cover `/templates` and `/content-packs` endpoints.
 - [x] Test harness runs `tools/check_structure.py`, `pytest tests_smoke.py`, `pytest smoke_test.py`.
+
+
+## Journey 15 — Template edit + per-block media playback
+**Steps**
+1. Open `/templates` and click **Edit** for a template.
+2. Update name/discipline/minutes/level.
+3. Attach media to at least one block and save.
+4. Start a session that uses the edited template (`/session/start/<plan_day_id>`).
+
+**Accept if**
+- save succeeds and template metadata reflects updates,
+- `json_blocks` stores the chosen per-block `media_id`,
+- player page shows **Open media** for block(s) with media attachments.

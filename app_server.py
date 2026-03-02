@@ -222,6 +222,7 @@ def apply_schema_migrations(connection: sqlite3.Connection) -> None:
         )
         """
     )
+    ensure_column(connection, "profile", "preferred_disciplines_json", "preferred_disciplines_json TEXT")
 
     connection.execute(
         """
@@ -708,7 +709,7 @@ def build_plan_structure(
                     "week": week,
                     "day_index": day_index,
                     "template_id": choice["id"],
-                    "title": f"Week {week} Day {day_index}: {choice['name']}",
+                    "title": f"Week {week} ({phase}) Day {day_index}: {choice['name']}",
                 }
             )
     return items
@@ -1700,22 +1701,23 @@ def create_app(port: int | None = None) -> Flask:
                 "SELECT id FROM profile WHERE user_id = ? ORDER BY id DESC LIMIT 1",
                 (user_id,),
             ).fetchone()
+            preferred_json = json.dumps(ordered_disciplines)
             if profile_row:
                 connection.execute(
                     """
                     UPDATE profile
-                    SET goal = ?, days_per_week = ?, minutes = ?, equipment = ?, constraints = ?, updated_at = ?
+                    SET goal = ?, days_per_week = ?, minutes = ?, equipment = ?, constraints = ?, preferred_disciplines_json = ?, updated_at = ?
                     WHERE id = ?
                     """,
-                    (goal, days_per_week, minutes_per_session, equipment, combined_constraints, now, profile_row[0]),
+                    (goal, days_per_week, minutes_per_session, equipment, combined_constraints, preferred_json, now, profile_row[0]),
                 )
             else:
                 connection.execute(
                     """
-                    INSERT INTO profile (user_id, goal, days_per_week, minutes, equipment, constraints, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO profile (user_id, goal, days_per_week, minutes, equipment, constraints, preferred_disciplines_json, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (user_id, goal, days_per_week, minutes_per_session, equipment, combined_constraints, now, now),
+                    (user_id, goal, days_per_week, minutes_per_session, equipment, combined_constraints, preferred_json, now, now),
                 )
 
             connection.execute(
@@ -1789,16 +1791,32 @@ def create_app(port: int | None = None) -> Flask:
             start = date.fromisoformat(row["start_date"])
             elapsed = max(0, (date.today() - start).days)
             current_week = min(total_weeks, (elapsed // 7) + 1)
-            next_week = min(total_weeks, current_week + 1)
+            next_week = current_week + 1
+            if next_week > total_weeks:
+                payload = {"ok": False, "error": "plan_already_at_final_week"}
+                if request.is_json:
+                    connection.close()
+                    return jsonify(payload), 400
+                connection.close()
+                return redirect(url_for("plan_current"))
 
             profile = connection.execute(
-                "SELECT goal, days_per_week, minutes FROM profile WHERE user_id = ? ORDER BY id DESC LIMIT 1",
+                "SELECT goal, days_per_week, minutes, preferred_disciplines_json FROM profile WHERE user_id = ? ORDER BY id DESC LIMIT 1",
                 (user_id,),
             ).fetchone()
             days_per_week = clamp_int(int(profile[1]) if profile and profile[1] else 4, 2, 6)
             minutes_per_session = clamp_int(int(profile[2]) if profile and profile[2] else 50, 30, 75)
             goal = (profile[0] if profile and profile[0] else "hybrid").strip().lower().replace(" ", "_")
             ordered_disciplines = GOAL_DEFAULTS.get(goal, GOAL_DEFAULTS["hybrid"])
+            if profile and profile[3]:
+                try:
+                    pref = json.loads(profile[3])
+                    if isinstance(pref, list):
+                        ranked = [str(x).strip().lower() for x in pref if str(x).strip().lower() in DISCIPLINES]
+                        if ranked:
+                            ordered_disciplines = ranked
+                except Exception:
+                    pass
 
             completed_day_ids = {
                 int(item[0])
@@ -1939,6 +1957,54 @@ def create_app(port: int | None = None) -> Flask:
         period_sessions = manual_sessions + plan_sessions
         period_minutes = manual_minutes + plan_minutes
         period_load = manual_load + plan_load
+
+        # Plan-aware planned-vs-done card (period scoped)
+        period_end = today.isoformat()
+        planned_rows = connection.execute(
+            """
+            SELECT pd.id, st.duration_minutes, p.start_date, pd.week, pd.day_index
+            FROM plan_day pd
+            JOIN plan p ON p.id = pd.plan_id
+            LEFT JOIN session_template st ON st.id = pd.template_id
+            WHERE p.user_id = ?
+              AND p.status = 'active'
+            """,
+            (user_id,),
+        ).fetchall()
+        planned_sessions = 0
+        planned_minutes = 0
+        for row in planned_rows:
+            start = date.fromisoformat(str(row[2]))
+            scheduled = start + timedelta(days=(int(row[3]) - 1) * 7 + (int(row[4]) - 1))
+            if start_iso <= scheduled.isoformat() <= period_end:
+                planned_sessions += 1
+                planned_minutes += int(row[1] or 0)
+
+        done_plan_sessions = connection.execute(
+            """
+            SELECT COUNT(*)
+            FROM session_completion sc
+            JOIN plan_day pd ON pd.id = sc.plan_day_id
+            JOIN plan p ON p.id = pd.plan_id
+            WHERE p.user_id = ? AND DATE(sc.completed_at) >= ?
+            """,
+            (user_id, start_iso),
+        ).fetchone()[0]
+        completion_rate = round((int(done_plan_sessions) / planned_sessions) * 100, 1) if planned_sessions > 0 else 0.0
+
+        today_plan_day_id = None
+        active_plan = current_plan_record(connection, user_id)
+        if active_plan is not None:
+            start = date.fromisoformat(str(active_plan["start_date"]))
+            elapsed_days = max(0, (today - start).days)
+            tw = min(int(active_plan["weeks"]), (elapsed_days // 7) + 1)
+            td = min(7, (elapsed_days % 7) + 1)
+            row_today = connection.execute(
+                "SELECT id FROM plan_day WHERE plan_id = ? AND week = ? AND day_index = ? LIMIT 1",
+                (int(active_plan["id"]), tw, td),
+            ).fetchone()
+            if row_today:
+                today_plan_day_id = int(row_today[0])
 
         total_rpe_sum = manual_rpe_sum + plan_rpe_sum
         total_rpe_cnt = manual_rpe_cnt + plan_rpe_cnt
@@ -2121,6 +2187,11 @@ def create_app(port: int | None = None) -> Flask:
             streak=int(streak),
             recent_activity=recent_activity,
             last_sessions=[dict(r) for r in last_sessions],
+            planned_sessions=int(planned_sessions),
+            planned_minutes=int(planned_minutes),
+            done_plan_sessions=int(done_plan_sessions or 0),
+            completion_rate=float(completion_rate),
+            today_plan_day_id=today_plan_day_id,
         )
 
     @app.get("/sessions")

@@ -936,6 +936,181 @@ def test_session_player_renders_coach_cue_panel(tmp_path, monkeypatch):
     assert page.status_code == 200
     assert b'Coach cue' in page.data
     assert b'Read cues aloud' in page.data
+
+
+def test_avatar_3d_page_loads(tmp_path, monkeypatch):
+    monkeypatch.setenv('DB_PATH', str(tmp_path / 'avatar3d.db'))
+    app = create_app(port=5433)
+    client = app.test_client()
+
+    page = client.get('/avatar-3d')
+    assert page.status_code == 200
+    assert b'3D Coach Preview' in page.data
+    assert b'poseSelect' in page.data
+
+
+def test_session_player_3d_fallback_hint_present(tmp_path, monkeypatch):
+    import sqlite3
+    monkeypatch.setenv('DB_PATH', str(tmp_path / 'avatar3d-session.db'))
+    app = create_app(port=5434)
+    client = app.test_client()
+
+    create = client.post('/api/plan/create', json={
+        'goal': 'hybrid',
+        'days_per_week': 3,
+        'minutes_per_session': 45,
+        'disciplines': ['strength', 'cardio', 'mobility', 'recovery', 'conditioning'],
+    })
+    assert create.status_code == 200
+
+    con = sqlite3.connect(app.config['DB_PATH'])
+    plan_day_id = con.execute('SELECT id FROM plan_day ORDER BY id LIMIT 1').fetchone()[0]
+    con.close()
+
+    page = client.get(f'/session/start/{plan_day_id}')
+    assert page.status_code == 200
+    assert b'Show 3D coach' in page.data
+    assert b'falls back gracefully' in page.data
+
+
+def test_template_editor_saves_avatar_clip(tmp_path, monkeypatch):
+    import sqlite3, json
+    monkeypatch.setenv('DB_PATH', str(tmp_path / 'template-edit.db'))
+    app = create_app(port=5435)
+    client = app.test_client()
+
+    con = sqlite3.connect(app.config['DB_PATH'])
+    template_id = con.execute('SELECT id FROM session_template ORDER BY id LIMIT 1').fetchone()[0]
+    con.close()
+
+    save = client.post(f'/templates/{template_id}/avatar-clips', data={'avatar_clip_0': 'squat'}, follow_redirects=True)
+    assert save.status_code == 200
+
+    con = sqlite3.connect(app.config['DB_PATH'])
+    raw = con.execute('SELECT json_blocks FROM session_template WHERE id = ?', (template_id,)).fetchone()[0]
+    con.close()
+    blocks = json.loads(raw).get('blocks', [])
+    assert blocks and blocks[0].get('avatar_clip') == 'squat'
+
+
+def test_player_handles_missing_avatar_clip_gracefully(tmp_path, monkeypatch):
+    import sqlite3, json
+    monkeypatch.setenv('DB_PATH', str(tmp_path / 'missing-clip.db'))
+    app = create_app(port=5436)
+    client = app.test_client()
+
+    client.post('/api/plan/create', json={
+        'goal': 'hybrid',
+        'days_per_week': 3,
+        'minutes_per_session': 45,
+        'disciplines': ['strength', 'cardio', 'mobility', 'recovery', 'conditioning'],
+    })
+
+    con = sqlite3.connect(app.config['DB_PATH'])
+    con.row_factory = sqlite3.Row
+    row = con.execute("SELECT pd.id, st.id as template_id, st.json_blocks FROM plan_day pd JOIN session_template st ON st.id = pd.template_id ORDER BY pd.id LIMIT 1").fetchone()
+    payload = json.loads(row['json_blocks'])
+    payload['blocks'][0]['avatar_clip'] = 'clip_does_not_exist'
+    con.execute('UPDATE session_template SET json_blocks = ? WHERE id = ?', (json.dumps(payload), row['template_id']))
+    con.commit()
+    plan_day_id = int(row['id'])
+    con.close()
+
+    page = client.get(f'/session/start/{plan_day_id}')
+    assert page.status_code == 200
+    assert b'clip_does_not_exist' in page.data
+    assert b'Show 3D coach' in page.data
+
+
+def test_player_renders_description_and_target_from_seeded_template(tmp_path, monkeypatch):
+    import sqlite3, json
+    monkeypatch.setenv('DB_PATH', str(tmp_path / 'player-desc-target.db'))
+    app = create_app(port=5437)
+    client = app.test_client()
+
+    # create a plan and force first plan_day to use a known seeded template
+    client.post('/api/plan/create', json={
+        'goal': 'hybrid',
+        'days_per_week': 3,
+        'minutes_per_session': 45,
+        'disciplines': ['strength', 'cardio', 'mobility', 'recovery', 'conditioning'],
+    })
+
+    con = sqlite3.connect(app.config['DB_PATH'])
+    con.row_factory = sqlite3.Row
+    seeded = con.execute("SELECT id, json_blocks FROM session_template WHERE name = 'Strength Base A' LIMIT 1").fetchone()
+    assert seeded is not None
+    plan_day = con.execute('SELECT id FROM plan_day ORDER BY id LIMIT 1').fetchone()[0]
+    con.execute('UPDATE plan_day SET template_id = ? WHERE id = ?', (int(seeded['id']), int(plan_day)))
+    con.commit()
+
+    payload = json.loads(seeded['json_blocks'])
+    first = payload['blocks'][0]
+    expected_desc = first.get('description', '')
+    expected_target = first.get('target', '')
+    con.close()
+
+    page = client.get(f'/session/start/{int(plan_day)}')
+    assert page.status_code == 200
+    assert expected_desc.encode('utf-8') in page.data
+    assert expected_target.encode('utf-8') in page.data
+
+
+def test_dashboard_shows_plan_adherence_card(tmp_path, monkeypatch):
+    monkeypatch.setenv('DB_PATH', str(tmp_path / 'dash-adherence.db'))
+    app = create_app(port=5440)
+    client = app.test_client()
+
+    created = client.post('/api/plan/create', json={
+        'goal': 'hybrid',
+        'days_per_week': 3,
+        'minutes_per_session': 45,
+        'disciplines': ['strength', 'cardio', 'mobility', 'recovery', 'conditioning'],
+    })
+    assert created.status_code == 200
+
+    dash = client.get('/dashboard?view=week')
+    assert dash.status_code == 200
+    assert b'Programme adherence' in dash.data
+    assert b'Planned sessions' in dash.data
+    assert b'Completion rate' in dash.data
+
+
+def test_regen_next_week_preserves_completion_rows(tmp_path, monkeypatch):
+    import sqlite3
+    monkeypatch.setenv('DB_PATH', str(tmp_path / 'regen-preserve.db'))
+    app = create_app(port=5441)
+    client = app.test_client()
+
+    created = client.post('/api/plan/create', json={
+        'goal': 'hybrid',
+        'days_per_week': 4,
+        'minutes_per_session': 50,
+        'disciplines': ['strength', 'cardio', 'conditioning', 'mobility', 'recovery'],
+    })
+    assert created.status_code == 200
+
+    con = sqlite3.connect(app.config['DB_PATH'])
+    plan_id = con.execute('SELECT id FROM plan ORDER BY id DESC LIMIT 1').fetchone()[0]
+    week2_day = con.execute('SELECT id FROM plan_day WHERE plan_id = ? AND week = 2 ORDER BY day_index LIMIT 1', (plan_id,)).fetchone()[0]
+    now = '2026-01-01T00:00:00+00:00'
+    con.execute(
+        'INSERT INTO session_completion (plan_day_id, completed_at, rpe, notes, minutes_done, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        (week2_day, now, 8, 'keep', 50, now, now),
+    )
+    con.commit()
+    con.close()
+
+    regen = client.post('/api/plan/regenerate-next-week', json={})
+    assert regen.status_code == 200
+
+    con = sqlite3.connect(app.config['DB_PATH'])
+    completion_count = con.execute('SELECT COUNT(*) FROM session_completion WHERE plan_day_id = ?', (week2_day,)).fetchone()[0]
+    plan_day_exists = con.execute('SELECT COUNT(*) FROM plan_day WHERE id = ?', (week2_day,)).fetchone()[0]
+    con.close()
+
+    assert completion_count == 1
+    assert plan_day_exists == 1
 def test_make_release_script_outputs_clean_zip(tmp_path):
     import subprocess
     import sys

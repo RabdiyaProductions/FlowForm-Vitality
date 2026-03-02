@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import json
 import logging
@@ -20,7 +21,7 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from functools import wraps
 
-from flask import Flask, jsonify, make_response, redirect, render_template, request, send_file, url_for, session, abort
+from flask import Flask, jsonify, make_response, redirect, render_template, request, send_file, url_for, session, abort, Response
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
@@ -1171,11 +1172,92 @@ def analytics_snapshot(connection: sqlite3.Connection, user_id: int) -> dict:
     else:
         readiness_takeaway = "No readiness trend yet — add daily recovery check-ins."
 
+
+    weekly_load = {"minutes": 0, "intensity_load": 0.0}
+    week_minutes = connection.execute(
+        """
+        SELECT COALESCE(SUM(minutes_done),0), COALESCE(AVG(rpe),0)
+        FROM session_completion
+        WHERE completed_at >= datetime('now', '-7 days')
+        """
+    ).fetchone()
+    if week_minutes:
+        weekly_load["minutes"] = int(week_minutes[0] or 0)
+        weekly_load["intensity_load"] = round(float((week_minutes[0] or 0) * (week_minutes[1] or 0)), 2)
+
+    rpe_trend = [
+        {"date": str(row[0]), "rpe": float(row[1])}
+        for row in connection.execute(
+            """
+            SELECT DATE(completed_at) AS d, AVG(rpe)
+            FROM session_completion
+            WHERE completed_at >= datetime('now', '-14 days')
+            GROUP BY DATE(completed_at)
+            ORDER BY d ASC
+            """
+        ).fetchall()
+        if row[0] and row[1] is not None
+    ]
+    rpe_average_14 = round(sum(item["rpe"] for item in rpe_trend) / len(rpe_trend), 2) if rpe_trend else None
+
+    readiness_completion_points = []
+    rows = connection.execute(
+        """
+        SELECT rc.date, rc.sleep_hours, rc.stress_1_10, rc.soreness_1_10, rc.mood_1_10,
+               CASE WHEN EXISTS(
+                   SELECT 1
+                   FROM session_completion sc
+                   WHERE DATE(sc.completed_at) = rc.date
+               ) THEN 1 ELSE 0 END AS completed
+        FROM recovery_checkin rc
+        WHERE rc.user_id = ?
+        ORDER BY rc.date DESC
+        LIMIT 30
+        """,
+        (user_id,),
+    ).fetchall()
+    for row in rows:
+        score, _ = compute_readiness_score(float(row[1] or 0), int(row[2] or 5), int(row[3] or 5), int(row[4] or 5))
+        readiness_completion_points.append({"date": str(row[0]), "readiness": score, "completed": int(row[5])})
+    corr_bucket = "insufficient_data"
+    if readiness_completion_points:
+        high = [p for p in readiness_completion_points if p["readiness"] >= 70]
+        low = [p for p in readiness_completion_points if p["readiness"] < 70]
+        high_rate = (sum(p["completed"] for p in high) / len(high)) if high else 0.0
+        low_rate = (sum(p["completed"] for p in low) / len(low)) if low else 0.0
+        delta = high_rate - low_rate
+        if delta > 0.15:
+            corr_bucket = "positive"
+        elif delta < -0.15:
+            corr_bucket = "negative"
+        else:
+            corr_bucket = "neutral"
+
+    domain_balance = {}
+    for row in connection.execute(
+        """
+        SELECT COALESCE(st.discipline, 'unknown') AS discipline, COALESCE(SUM(sc.minutes_done),0) AS minutes
+        FROM session_completion sc
+        JOIN plan_day pd ON pd.id = sc.plan_day_id
+        LEFT JOIN session_template st ON st.id = pd.template_id
+        WHERE sc.completed_at >= datetime('now', '-30 days')
+        GROUP BY discipline
+        ORDER BY minutes DESC
+        """
+    ).fetchall():
+        domain_balance[str(row[0])] = int(row[1] or 0)
+
     return {
         "streak": streak,
         "weekly_completion_rate": weekly_completion_rate,
         "avg_rpe": avg_rpe,
         "readiness_trend": readiness_trend,
+        "weekly_load": weekly_load,
+        "rpe_trend": rpe_trend,
+        "rpe_average_14": rpe_average_14,
+        "readiness_completion_correlation": corr_bucket,
+        "readiness_completion_points": readiness_completion_points,
+        "domain_balance": domain_balance,
         "takeaways": {
             "streak": streak_takeaway,
             "weekly": weekly_takeaway,
@@ -4193,6 +4275,76 @@ def create_app(port: int | None = None) -> Flask:
         shutil.rmtree(temp_dir, ignore_errors=True)
         return jsonify({"ok": True, "restored": summary})
 
+
+    @app.get("/api/export/csv/completions")
+    @require_login
+    def api_export_csv_completions():
+        connection = sqlite3.connect(db_path)
+        connection.row_factory = sqlite3.Row
+        rows = connection.execute(
+            """
+            SELECT sc.id, sc.completed_at, sc.rpe, sc.minutes_done, pd.week, pd.day_index, st.name AS template_name, st.discipline
+            FROM session_completion sc
+            JOIN plan_day pd ON pd.id = sc.plan_day_id
+            LEFT JOIN session_template st ON st.id = pd.template_id
+            ORDER BY sc.completed_at DESC
+            """
+        ).fetchall()
+        connection.close()
+        out = io.StringIO()
+        w = csv.writer(out)
+        w.writerow(["id", "completed_at", "rpe", "minutes_done", "week", "day_index", "template_name", "discipline"])
+        for r in rows:
+            w.writerow([r["id"], r["completed_at"], r["rpe"], r["minutes_done"], r["week"], r["day_index"], r["template_name"], r["discipline"]])
+        return Response(out.getvalue(), mimetype="text/csv", headers={"Content-Disposition": "attachment; filename=completions.csv"})
+
+    @app.get("/api/export/csv/recovery")
+    @require_login
+    def api_export_csv_recovery():
+        connection = sqlite3.connect(db_path)
+        connection.row_factory = sqlite3.Row
+        user_id = current_user_id(connection)
+        rows = connection.execute(
+            """
+            SELECT date, sleep_hours, stress_1_10, soreness_1_10, mood_1_10, notes
+            FROM recovery_checkin
+            WHERE user_id = ?
+            ORDER BY date DESC
+            """,
+            (user_id,),
+        ).fetchall()
+        connection.close()
+        out = io.StringIO()
+        w = csv.writer(out)
+        w.writerow(["date", "sleep_hours", "stress_1_10", "soreness_1_10", "mood_1_10", "notes"])
+        for r in rows:
+            w.writerow([r["date"], r["sleep_hours"], r["stress_1_10"], r["soreness_1_10"], r["mood_1_10"], r["notes"]])
+        return Response(out.getvalue(), mimetype="text/csv", headers={"Content-Disposition": "attachment; filename=recovery_checkins.csv"})
+
+    @app.get("/api/export/csv/weekly-load")
+    @require_login
+    def api_export_csv_weekly_load():
+        connection = sqlite3.connect(db_path)
+        rows = connection.execute(
+            """
+            SELECT strftime('%Y-%W', completed_at) AS week_key,
+                   COALESCE(SUM(minutes_done),0) AS minutes,
+                   COALESCE(AVG(rpe),0) AS avg_rpe
+            FROM session_completion
+            GROUP BY week_key
+            ORDER BY week_key DESC
+            """
+        ).fetchall()
+        connection.close()
+        out = io.StringIO()
+        w = csv.writer(out)
+        w.writerow(["week", "minutes", "avg_rpe", "intensity_load"])
+        for r in rows:
+            minutes = int(r[1] or 0)
+            avg_rpe = float(r[2] or 0)
+            w.writerow([r[0], minutes, round(avg_rpe,2), round(minutes * avg_rpe,2)])
+        return Response(out.getvalue(), mimetype="text/csv", headers={"Content-Disposition": "attachment; filename=weekly_load_summary.csv"})
+
     @app.post("/api/export")
     def api_export():
         return jsonify({"ok": True, "route": "/api/export"})
@@ -4256,6 +4408,9 @@ def create_app(port: int | None = None) -> Flask:
             {"path": "/api/critic/run", "methods": ["POST"], "description": "Run critic pass"},
             {"path": "/api/approve", "methods": ["POST"], "description": "Approve current draft"},
             {"path": "/api/export", "methods": ["POST"], "description": "Export project"},
+            {"path": "/api/export/csv/completions", "methods": ["GET"], "description": "Download completions CSV"},
+            {"path": "/api/export/csv/recovery", "methods": ["GET"], "description": "Download recovery CSV"},
+            {"path": "/api/export/csv/weekly-load", "methods": ["GET"], "description": "Download weekly load CSV"},
             {"path": "/api/export/plan", "methods": ["GET"], "description": "Download plan HTML export"},
             {"path": "/api/export/json", "methods": ["GET"], "description": "Download full backup JSON"},
             {"path": "/api/export/zip", "methods": ["GET"], "description": "Download zip bundle"},
@@ -4318,6 +4473,9 @@ def create_app(port: int | None = None) -> Flask:
             '/api/export/plan_pdf/<plan_id>',
             '/api/export/session_summary/<completion_id>',
             '/api/import/backup',
+            '/api/export/csv/completions',
+            '/api/export/csv/recovery',
+            '/api/export/csv/weekly-load',
             '/api/spec',
             '/diagnostics',
             '/ready',

@@ -288,3 +288,15 @@
 - intensity slider adjusts block timing and suggested RPE target,
 - session remains stable with interval/timed blocks,
 - built-in packs install from content-packs without ZIP upload.
+
+
+## Journey 17 — Founder analytics + CSV exports
+**Steps**
+1. Open `/analytics`.
+2. Validate weekly load, RPE trend/average, readiness-completion correlation, and domain balance cards.
+3. Download all CSVs from analytics page.
+
+**Accept if**
+- analytics cards render meaningful values,
+- CSV endpoints return downloadable files for completions/recovery/weekly load,
+- analytics remains responsive with no crashes.

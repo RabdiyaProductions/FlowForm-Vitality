@@ -1289,3 +1289,53 @@ def test_session_intensity_query_affects_computed_seconds(tmp_path, monkeypatch)
     high_json = json.loads(m_high.group(1).decode('utf-8'))
 
     assert int(low_json['total_seconds']) < int(high_json['total_seconds'])
+
+
+def test_analytics_csv_endpoints_return_200(tmp_path, monkeypatch):
+    monkeypatch.setenv('DB_PATH', str(tmp_path / 'analytics-csv.db'))
+    app = create_app(port=5452)
+    client = app.test_client()
+
+    create = client.post('/api/plan/create', json={
+        'goal': 'hybrid',
+        'days_per_week': 3,
+        'minutes_per_session': 45,
+        'disciplines': ['strength', 'cardio', 'mobility', 'recovery', 'conditioning'],
+    })
+    assert create.status_code == 200
+
+    import sqlite3
+    con = sqlite3.connect(app.config['DB_PATH'])
+    plan_day_id = con.execute('SELECT id FROM plan_day ORDER BY id LIMIT 1').fetchone()[0]
+    con.close()
+    finish = client.post('/api/session/finish', json={
+        'plan_day_id': int(plan_day_id),
+        'rpe': 7,
+        'minutes_done': 42,
+        'notes': 'analytics seed',
+    })
+    assert finish.status_code == 200
+
+    checkin = client.post('/api/recovery/checkin', json={
+        'date': '2026-03-01',
+        'sleep_hours': 7.1,
+        'stress_1_10': 5,
+        'soreness_1_10': 4,
+        'mood_1_10': 7,
+    })
+    assert checkin.status_code == 200
+
+    analytics = client.get('/analytics')
+    assert analytics.status_code == 200
+    assert b'Weekly load' in analytics.data
+    assert b'Download CSV exports' in analytics.data
+
+    c1 = client.get('/api/export/csv/completions')
+    c2 = client.get('/api/export/csv/recovery')
+    c3 = client.get('/api/export/csv/weekly-load')
+    assert c1.status_code == 200
+    assert c2.status_code == 200
+    assert c3.status_code == 200
+    assert b'minutes_done' in c1.data
+    assert b'sleep_hours' in c2.data
+    assert b'intensity_load' in c3.data

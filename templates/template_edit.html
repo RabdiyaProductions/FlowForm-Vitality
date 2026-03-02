@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <h1>Edit Template</h1>
+  {% if error %}<p style="color:#ff9d9d;"><strong>{{ error }}</strong></p>{% endif %}
+  {% if message %}<p style="color:#98ffcc;"><strong>{{ message }}</strong></p>{% endif %}
+
+  <form method="post" action="/templates/{{ template.id }}/edit">
+    <label>Name</label>
+    <input type="text" name="name" value="{{ template.name }}" required />
+
+    <label>Discipline</label>
+    <select name="discipline">
+      {% for d in disciplines %}
+      <option value="{{ d }}" {% if template.discipline == d %}selected{% endif %}>{{ d }}</option>
+      {% endfor %}
+    </select>
+
+    <label>Minutes</label>
+    <input type="number" name="duration_minutes" min="1" max="240" value="{{ template.duration_minutes }}" required />
+
+    <label>Level</label>
+    <select name="level">
+      {% for lv in levels %}
+      <option value="{{ lv }}" {% if template.level == lv %}selected{% endif %}>{{ lv }}</option>
+      {% endfor %}
+    </select>
+
+    <h2>Blocks</h2>
+    <p class="muted">Edit each block and optionally attach media.</p>
+    {% for block in template.blocks %}
+    <div style="border:1px solid var(--border); border-radius:10px; padding:10px; margin:8px 0;">
+      <label>Block name</label>
+      <input type="text" name="block_name" value="{{ block.name }}" required />
+
+      <label>Minutes</label>
+      <input type="number" name="block_minutes" min="0" max="120" value="{{ block.minutes }}" required />
+
+      <label>Media</label>
+      <select name="block_media_id">
+        <option value="">None</option>
+        {% for m in media_items %}
+        <option value="{{ m.id }}" {% if block.media_id == m.id %}selected{% endif %}>[{{ m.category }}] {{ m.original_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endfor %}
+
+    <button class="btn" type="submit">Save template</button>
+  </form>
+</div>
+{% endblock %}

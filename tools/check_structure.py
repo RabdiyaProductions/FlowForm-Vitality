@@ -35,6 +35,7 @@ ALLOWED_RUN_SCRIPTS = {
     # Tooling
     "tools/run_full_tests.py",
     "tools/check_structure.py",
+    "tools/make_release.py",
 }
 
 BOOT_STACK_GROUPS = {

@@ -77,3 +77,20 @@ For Linux-based preview environments (including Codex), use the root boot entryp
 Notes:
 - The app binds `0.0.0.0` for container reachability.
 - Local access still works via `http://localhost:<PORT>` (or `127.0.0.1:<PORT>`).
+
+
+## Release packaging
+
+Create a clean distributable ZIP (excluding runtime data/logs/instance artifacts):
+
+```bash
+python tools/make_release.py
+```
+
+Optional custom output path:
+
+```bash
+python tools/make_release.py --output RELEASES/flowform-custom.zip
+```
+
+The script excludes `.git`, `.venv`, `__pycache__`, `data/`, `logs/`, `instance/`, and existing `RELEASES/` artifacts.

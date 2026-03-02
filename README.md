@@ -87,3 +87,18 @@ From each card you can:
 - Preview block-by-block instructions
 - Start as a manual session instantly
 - Add the template to your current plan day stack (when a plan exists)
+## Release packaging
+
+Create a clean distributable ZIP (excluding runtime data/logs/instance artifacts):
+
+```bash
+python tools/make_release.py
+```
+
+Optional custom output path:
+
+```bash
+python tools/make_release.py --output RELEASES/flowform-custom.zip
+```
+
+The script excludes `.git`, `.venv`, `__pycache__`, `data/`, `logs/`, `instance/`, and existing `RELEASES/` artifacts.

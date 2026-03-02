@@ -446,6 +446,8 @@ def apply_schema_migrations(connection: sqlite3.Connection) -> None:
         """
     )
 
+    ensure_column(connection, "avatar_state", "voice_enabled", "voice_enabled INTEGER NOT NULL DEFAULT 0")
+
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS _healthcheck (
@@ -457,6 +459,104 @@ def apply_schema_migrations(connection: sqlite3.Connection) -> None:
     connection.execute("INSERT INTO _healthcheck(checked_at) VALUES (?)", (now,))
 
 
+BUILTIN_TEMPLATE_PACK_VERSION = "2026.03.library.v2"
+
+
+def _build_blocks(warm: str, main: str, finisher: str, minutes: tuple[int, int, int], cues: tuple[str, str, str]) -> dict:
+    return {
+        "blocks": [
+            {"name": warm, "type": "timed", "minutes": minutes[0], "description": f"Prepare movement quality for {warm.lower()}.", "target": cues[0]},
+            {"name": main, "type": "timed", "minutes": minutes[1], "description": f"Primary training focus: {main.lower()}.", "target": cues[1]},
+            {"name": finisher, "type": "timed", "minutes": minutes[2], "description": f"Close session with {finisher.lower()}.", "target": cues[2]},
+        ]
+    }
+
+
+def _starter_templates() -> list[dict]:
+    templates: list[dict] = []
+    specs = {
+        "strength": [
+            ("Strength Base A", 45, "beginner", ("Warm-up", "Squat + Press", "Cooldown"), (8, 29, 8), ("RPE 3", "4x6 @ controlled tempo", "Nasal downshift")),
+            ("Strength Base B", 50, "beginner", ("Activation", "Hinge + Row", "Mobility Finish"), (10, 32, 8), ("Joint prep", "5x5 @ RPE 7", "Long exhales")),
+            ("Strength Builder", 55, "intermediate", ("Prep", "Push + Pull Superset", "Core"), (10, 35, 10), ("Bar path drill", "5 rounds", "3 controlled sets")),
+            ("Strength Density", 60, "intermediate", ("Warm-up", "Compound Ladder", "Cooldown"), (10, 40, 10), ("RPE 4", "Density blocks", "Breathing reset")),
+            ("Strength Peak", 65, "advanced", ("Prep", "Heavy Main Lift", "Accessory Finish"), (12, 41, 12), ("Movement prep", "Top sets @ RPE 8", "Quality reps")),
+        ],
+        "cardio": [
+            ("Cardio Zone 2 30", 30, "beginner", ("Ramp", "Zone 2", "Cooldown"), (6, 18, 6), ("RPE 3", "Talk test pass", "RPE 2")),
+            ("Cardio Zone 2 40", 40, "beginner", ("Ramp", "Steady Aerobic", "Cooldown"), (8, 26, 6), ("Cadence prep", "RPE 4-5", "Nasal breathing")),
+            ("Cardio Tempo 45", 45, "intermediate", ("Warm-up", "Tempo Set", "Cooldown"), (8, 29, 8), ("RPE 3-4", "3x8 min tempo", "Easy spin/walk")),
+            ("Cardio Intervals 50", 50, "intermediate", ("Warm-up", "Intervals", "Cooldown"), (10, 32, 8), ("Prime mechanics", "8x2min on/2min steady", "HR recovery")),
+            ("Cardio Progression 60", 60, "advanced", ("Ramp", "Threshold Work", "Cooldown"), (10, 40, 10), ("Smooth build", "5x5 threshold", "Downregulate")),
+        ],
+        "conditioning": [
+            ("Conditioning Circuit 35", 35, "beginner", ("Warm-up", "Circuit", "Cooldown"), (7, 21, 7), ("Prep", "5 rounds", "Slow breath")),
+            ("Conditioning Builder 40", 40, "beginner", ("Activation", "Mixed Modal", "Reset"), (8, 24, 8), ("Prime pattern", "6 rounds", "Walk + breathe")),
+            ("Conditioning Engine 45", 45, "intermediate", ("Warm-up", "Work Blocks", "Cooldown"), (9, 27, 9), ("RPE 4", "4x6 min", "RPE 2")),
+            ("Conditioning Density 55", 55, "intermediate", ("Prep", "Density Rounds", "Reset"), (10, 35, 10), ("Joint prep", "8 rounds", "Nasal-only")),
+            ("Conditioning Peak 65", 65, "advanced", ("Warm-up", "Hard Intervals", "Cooldown"), (12, 41, 12), ("Prime", "10x2 hard", "Long exhale")),
+        ],
+        "mobility": [
+            ("Mobility Flow 30", 30, "all_levels", ("Breathing", "Hip/Spine Flow", "Integration"), (6, 18, 6), ("4/6 breath", "Controlled range", "Light gait")),
+            ("Mobility Restore 35", 35, "all_levels", ("Reset", "Joint CARs", "Release"), (7, 21, 7), ("Ribcage stack", "Slow circles", "Relaxed breath")),
+            ("Mobility Builder 40", 40, "beginner", ("Warm-up", "Flow Blocks", "Cooldown"), (8, 24, 8), ("Movement prep", "3 rounds", "Long exhale")),
+            ("Mobility Performance 45", 45, "intermediate", ("Prep", "Range + Control", "Integration"), (9, 27, 9), ("Quality reps", "Tempo control", "Carryover drill")),
+            ("Mobility Deep Session", 50, "intermediate", ("Reset", "Deep Flow", "Close"), (10, 30, 10), ("Breath-led", "Progressive range", "Downshift")),
+        ],
+        "recovery": [
+            ("Recovery Downshift 30", 30, "all_levels", ("Breathing", "Restore", "Close"), (8, 14, 8), ("Long exhale", "Easy mobility", "Nasal only")),
+            ("Recovery Reset 35", 35, "all_levels", ("Breath Reset", "Tissue Quality", "Calm Finish"), (8, 19, 8), ("Box breathing", "Pain-free range", "RPE 1-2")),
+            ("Recovery Flow 40", 40, "beginner", ("Reset", "Low Load Flow", "Close"), (8, 24, 8), ("RPE 2", "Quality movement", "Relax")),
+            ("Recovery Extended 45", 45, "intermediate", ("Breath", "Flow", "Reflection"), (9, 27, 9), ("Cadence", "Steady rhythm", "Short notes")),
+            ("Recovery Deep 50", 50, "intermediate", ("Prep", "Extended Recovery", "Finish"), (10, 30, 10), ("Calm prep", "Sustained easy effort", "Downshift")),
+        ],
+        "breathwork": [
+            ("Breathwork Cadence 30", 30, "all_levels", ("Settle", "Cadence", "Recovery"), (8, 14, 8), ("Soft inhale", "4-4 / 4-6 cycles", "Return to baseline")),
+            ("Breathwork CO2 35", 35, "all_levels", ("Prep", "CO2 Ladder", "Reset"), (8, 19, 8), ("Nasal prep", "6 rounds", "Relaxed breathing")),
+            ("Breathwork Focus 40", 40, "beginner", ("Downshift", "Focused Breath", "Close"), (8, 24, 8), ("Nervous system prep", "Counted breaths", "Body scan")),
+            ("Breathwork Performance 45", 45, "intermediate", ("Warm-up", "Rhythm Work", "Recovery"), (9, 27, 9), ("Cadence prep", "Progressive sets", "Long exhale")),
+            ("Breathwork Deep 50", 50, "intermediate", ("Settle", "Extended Practice", "Close"), (10, 30, 10), ("Calm state", "Controlled holds", "Nasal only")),
+        ],
+        "mindfulness": [
+            ("Mindfulness Body Scan 30", 30, "all_levels", ("Settle", "Body Scan", "Reflect"), (8, 14, 8), ("Posture check", "Guided attention", "2 bullet notes")),
+            ("Mindfulness Focus 35", 35, "all_levels", ("Reset", "Breath Focus", "Journal"), (8, 19, 8), ("Calm inhale", "Single-point focus", "Short reflection")),
+            ("Mindfulness Recovery 40", 40, "beginner", ("Center", "Awareness Practice", "Close"), (8, 24, 8), ("Grounding", "Non-judgmental awareness", "Ease out")),
+            ("Mindfulness Performance 45", 45, "intermediate", ("Prepare", "Focus Blocks", "Integrate"), (9, 27, 9), ("Set intention", "Sustained focus", "Next action cue")),
+            ("Mindfulness Deep 50", 50, "intermediate", ("Settle", "Long Practice", "Reflect"), (10, 30, 10), ("Calm body", "Extended attention", "Journal prompt")),
+        ],
+    }
+
+    for discipline, items in specs.items():
+        for name, duration, level, names, mins, cues in items:
+            templates.append(
+                {
+                    "name": name,
+                    "discipline": discipline,
+                    "duration_minutes": duration,
+                    "level": level,
+                    "json_blocks": _build_blocks(names[0], names[1], names[2], mins, cues),
+                }
+            )
+
+    templates.append(
+        {
+            "name": "Conditioning Intervals Signature",
+            "discipline": "conditioning",
+            "duration_minutes": 42,
+            "level": "intermediate",
+            "json_blocks": {
+                "blocks": [
+                    {"name": "Warm-up", "type": "timed", "minutes": 8, "description": "Prime movement patterns.", "target": "RPE 3-4"},
+                    {"name": "Engine Intervals", "type": "interval", "work_seconds": 40, "rest_seconds": 20, "rounds": 12, "minutes": 12, "description": "Alternating work and recovery.", "target": "Quality output each round"},
+                    {"name": "Cooldown", "type": "timed", "minutes": 10, "description": "Downshift breathing.", "target": "Nasal breathing"},
+                ]
+            },
+        }
+    )
+    return templates
+
+
+BUILTIN_TEMPLATES: list[dict] = _starter_templates()
 BUILTIN_TEMPLATE_PACK_VERSION = "2026.03.library.v1"
 
 
@@ -692,6 +792,10 @@ def build_plan_structure(
     items: list[dict] = []
     usage_count: dict[int, int] = {}
     recent_template_ids: list[int] = []
+
+    for week in range(1, weeks + 1):
+        target = week_target_minutes(minutes_per_session, week)
+        phase = {1: "Base", 2: "Build", 3: "Peak", 4: "Deload"}.get(week, f"Week {week}")
 
     for week in range(1, weeks + 1):
         target = week_target_minutes(minutes_per_session, week)
@@ -1682,6 +1786,7 @@ def create_app(port: int | None = None) -> Flask:
     @require_login
     def avatar_3d():
         pose = (request.args.get("pose") or "idle").strip().lower()
+        if pose not in {"idle", "warmup", "squat", "hinge", "plank", "stretch", "breathe"}:
         if pose not in {"idle", "warmup", "squat", "hinge", "pushup", "plank", "stretch", "breathe"}:
             pose = "idle"
         embed = (request.args.get("embed") or "0") == "1"
@@ -2973,6 +3078,7 @@ def create_app(port: int | None = None) -> Flask:
         connection.row_factory = sqlite3.Row
         user_id = current_user_id(connection)
         row = connection.execute(
+            "SELECT id, name, discipline, duration_minutes, level, json_blocks FROM session_template WHERE id = ?",
             "SELECT id, name, discipline, duration_minutes, level FROM session_template WHERE id = ?",
             (template_id,),
         ).fetchone()
@@ -3045,6 +3151,7 @@ def create_app(port: int | None = None) -> Flask:
         guidance_level = (request.form.get("guidance_level") or "medium").strip().lower()
         if guidance_level not in {"low", "medium", "high"}:
             guidance_level = "medium"
+        voice_enabled = 1 if str(request.form.get("voice_enabled") or "").lower() in {"1", "true", "on", "yes"} else 0
 
         connection = sqlite3.connect(db_path)
         connection.row_factory = sqlite3.Row
@@ -3057,6 +3164,11 @@ def create_app(port: int | None = None) -> Flask:
         now = utc_now_iso()
         connection.execute(
             """
+            INSERT INTO avatar_state(user_id, avatar_id, guidance_level, voice_enabled, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET avatar_id = excluded.avatar_id, guidance_level = excluded.guidance_level, voice_enabled = excluded.voice_enabled, updated_at = excluded.updated_at
+            """,
+            (user_id, avatar_id, guidance_level, voice_enabled, now),
             INSERT INTO avatar_state(user_id, avatar_id, guidance_level, updated_at)
             VALUES (?, ?, ?, ?)
             ON CONFLICT(user_id) DO UPDATE SET avatar_id = excluded.avatar_id, guidance_level = excluded.guidance_level, updated_at = excluded.updated_at
@@ -3772,6 +3884,11 @@ def create_app(port: int | None = None) -> Flask:
             b["coach_cue"] = coach_cue_text(avatar, discipline, b, guidance)
             b["avatar_pose"] = avatar_clip_for_block(discipline, b)
 
+        if not blocks:
+            duration = int(row["duration_minutes"] or 30)
+            fallback = {"name": row["template_name"] or "Session", "minutes": duration, "seconds": duration * 60, "description": "", "target": "", "avatar_clip": ""}
+            fallback["coach_cue"] = coach_cue_text(avatar, discipline, fallback, guidance)
+            fallback["avatar_pose"] = avatar_clip_for_block(discipline, fallback)
         if not blocks:
             duration = int(row["duration_minutes"] or 30)
             fallback = {"name": row["template_name"] or "Session", "minutes": duration, "seconds": duration * 60, "description": "", "target": "", "avatar_clip": ""}

@@ -8,6 +8,11 @@
 
 <div class="card">
   <h2 id="blockTitle">Block</h2>
+  <p class="muted" id="blockMeta"></p>
+  <p class="muted" id="blockDescription"></p>
+  <p><strong id="blockTarget"></strong></p>
+  <label>Substitute note (optional)</label>
+  <textarea id="substituteNote" rows="2" placeholder="Swap exercise / modification..."></textarea>
   <p class="muted" id="blockDescription"></p>
   <p><strong id="blockTarget"></strong></p>
   <p>Block <span id="blockIndex">1</span>/{{ session.blocks|length }}</p>
@@ -22,6 +27,9 @@
   <div id="mediaWrap" style="display:none; margin-top:12px;"><a class="btn" id="mediaBtn" target="_blank" href="#">Open media</a></div>
 </div>
 
+<div class="card"><h3>Coach cue</h3><p id="coachCueText"></p><label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="speakToggle" style="width:auto;" {% if avatar.voice_enabled %}checked{% endif %} /> Read cues aloud</label></div>
+
+<div class="card"><label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="show3dToggle" style="width:auto;" /> Show 3D coach</label><p class="muted">3D is optional and falls back gracefully if WebGL is unavailable.</p><div id="avatar3dPanel" style="display:none; margin-top:10px;"><iframe id="avatar3dFrame" title="3D Coach" loading="lazy" style="width:100%;height:320px;border:1px solid #21304f;border-radius:10px;background:#0d1628;"></iframe></div></div>
 
 <div class="card">
   <h3 style="margin-top:0;">Coach cue</h3>
@@ -59,6 +67,11 @@ function blockMeta(b){
   if((b.type||'timed')==='reps') return `Type: reps${b.reps?` · ${b.reps}`:''}${b.tempo?` · tempo ${b.tempo}`:''}`;
   if((b.type||'timed')==='interval') return `Type: interval · ${b.rounds||1} rounds · work ${b.work_seconds||0}s / rest ${b.rest_seconds||0}s`;
   return `Type: timed · ${b.minutes||0} min`;
+}
+function resetTimerForBlock(b){
+  if((b.type||'timed')==='interval'){
+    intervalState={phase:'work',roundsDone:0};
+    secondsLeft = Math.max(1, Number(b.work_seconds||20));
 }
 
 
@@ -122,7 +135,38 @@ function render(){
   document.getElementById('substituteNote').value = substitutions[blockIdx] || '';
   const wrap=document.getElementById('mediaWrap'); const btn=document.getElementById('mediaBtn');
   if (b.media_id){ wrap.style.display='block'; btn.href=`/media/${b.media_id}`; } else { wrap.style.display='none'; btn.href='#'; }
+  sync3DPose();
 }
+
+function sync3DPose(){
+  const toggle=document.getElementById('show3dToggle');
+  const panel=document.getElementById('avatar3dPanel');
+  const frame=document.getElementById('avatar3dFrame');
+  if(!toggle || !panel || !frame) return;
+  if(!toggle.checked){ panel.style.display='none'; return; }
+  panel.style.display='block';
+  const b = blocks[blockIdx] || {};
+  const pose = String(b.avatar_pose || 'idle');
+  const src = `/avatar-3d?embed=1&pose=${encodeURIComponent(pose)}`;
+  if(!frame.src){ frame.src = src; return; }
+  try {
+    frame.contentWindow.postMessage({type:'avatar-pose', pose}, '*');
+  } catch(_) {
+    frame.src = src;
+}
+function tickInterval(b){
+  if(secondsLeft>0){ secondsLeft -= 1; return; }
+  if(intervalState.phase==='work'){
+    if((b.rest_seconds||0) > 0){ intervalState.phase='rest'; secondsLeft = Number(b.rest_seconds||0); return; }
+    intervalState.roundsDone += 1;
+    if(intervalState.roundsDone >= Number(b.rounds||1)){ nextBlock(); return; }
+    secondsLeft = Number(b.work_seconds||20); return;
+  }
+  intervalState.roundsDone += 1;
+  if(intervalState.roundsDone >= Number(b.rounds||1)){ nextBlock(); return; }
+  intervalState.phase='work'; secondsLeft = Number(b.work_seconds||20);
+}
+
 function tickInterval(b){
   if(secondsLeft>0){ secondsLeft -= 1; return; }
   if(intervalState.phase==='work'){

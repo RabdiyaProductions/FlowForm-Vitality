@@ -36,6 +36,17 @@
   let currentAction = null;
 
   function playPose(name) {
+    const next = actions[name];
+    if (!next) {
+      statusEl.textContent = `Pose '${name}' not found; showing default.`;
+      return;
+    }
+    if (currentAction && currentAction !== next && currentAction.crossFadeTo) {
+      currentAction.crossFadeTo(next, 0.25, false);
+    } else if (currentAction && currentAction.stop) {
+      currentAction.stop();
+    }
+    currentAction = next.reset().fadeIn(0.15).play();
     if (!actions[name]) {
       statusEl.textContent = `Pose '${name}' not found; showing default.`;
       return;
@@ -59,6 +70,14 @@
   });
 
   poseSel.addEventListener('change', () => playPose(poseSel.value.toLowerCase()));
+
+  window.addEventListener('message', (event) => {
+    const data = event && event.data ? event.data : null;
+    if (!data || data.type !== 'avatar-pose') return;
+    const pose = String(data.pose || 'idle').toLowerCase();
+    poseSel.value = pose;
+    playPose(pose);
+  });
 
   function resize() {
     const w = canvas.clientWidth || 640;

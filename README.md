@@ -79,6 +79,14 @@ Notes:
 - Local access still works via `http://localhost:<PORT>` (or `127.0.0.1:<PORT>`).
 
 
+## Session Library
+
+Use `/library` to browse premium built-in sessions and filter by discipline, duration, level, and equipment keywords.
+
+From each card you can:
+- Preview block-by-block instructions
+- Start as a manual session instantly
+- Add the template to your current plan day stack (when a plan exists)
 ## Release packaging
 
 Create a clean distributable ZIP (excluding runtime data/logs/instance artifacts):

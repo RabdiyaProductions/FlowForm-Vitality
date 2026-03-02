@@ -1630,6 +1630,26 @@ def create_app(port: int | None = None) -> Flask:
             }
         )
 
+
+    @app.get("/assets/<path:asset_path>")
+    def assets_file(asset_path: str):
+        target = (ROOT_DIR / "assets" / asset_path).resolve()
+        root = (ROOT_DIR / "assets").resolve()
+        if root not in target.parents and target != root:
+            return jsonify({"error": "invalid_asset_path"}), 400
+        if not target.exists() or not target.is_file():
+            return jsonify({"error": "asset_not_found"}), 404
+        return send_file(target)
+
+    @app.get("/avatar-3d")
+    @require_login
+    def avatar_3d():
+        pose = (request.args.get("pose") or "idle").strip().lower()
+        if pose not in {"idle", "warmup", "squat", "hinge", "pushup", "plank", "stretch", "breathe"}:
+            pose = "idle"
+        embed = (request.args.get("embed") or "0") == "1"
+        return render_template("avatar_3d.html", selected_pose=pose, embed=embed)
+
     @app.get("/plan/wizard")
     @require_login
     def plan_wizard():

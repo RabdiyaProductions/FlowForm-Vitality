@@ -67,6 +67,30 @@ function fmt(total) {
   return `${m}:${s}`;
 }
 
+
+function poseForBlock(block) {
+  const txt = `${sessionData.discipline || ''} ${block.name || ''} ${block.description || ''} ${block.target || ''}`.toLowerCase();
+  if (txt.includes('warm')) return 'warmup';
+  if (txt.includes('squat')) return 'squat';
+  if (txt.includes('hinge') || txt.includes('deadlift')) return 'hinge';
+  if (txt.includes('push') || txt.includes('press') || txt.includes('pushup')) return 'pushup';
+  if (txt.includes('plank') || txt.includes('core')) return 'plank';
+  if (txt.includes('stretch') || txt.includes('mobility') || txt.includes('flex')) return 'stretch';
+  if (txt.includes('breath') || txt.includes('mindful') || txt.includes('recovery')) return 'breathe';
+  return 'idle';
+}
+
+function sync3DForCurrentBlock(block) {
+  const wrap = document.getElementById('coach3dWrap');
+  const toggle = document.getElementById('show3dToggle');
+  const frame = document.getElementById('coach3dFrame');
+  if (!wrap || !toggle || !frame) return;
+  wrap.style.display = toggle.checked ? 'block' : 'none';
+  if (!toggle.checked) return;
+  const pose = poseForBlock(block || {});
+  frame.src = `/avatar-3d?embed=1&pose=${encodeURIComponent(pose)}`;
+}
+
 function render() {
   const block = blocks[blockIdx] || {name: 'Done', seconds: 0};
   document.getElementById('blockTitle').textContent = block.name;
@@ -85,6 +109,7 @@ function render() {
   // Show or hide the media link if this block has an attached media_id
   const wrap = document.getElementById('mediaWrap');
   const btn = document.getElementById('mediaBtn');
+  sync3DForCurrentBlock(block);
   if (block.media_id) {
     wrap.style.display = 'block';
     btn.href = `/media/${block.media_id}`;

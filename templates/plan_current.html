@@ -18,6 +18,11 @@
       {% endif %}
       {% if suggestion %}
         <p class="muted">Suggested template: <em>{{ suggestion.name }}</em> ({{ suggestion.discipline }}, {{ suggestion.duration_minutes }} min). Plan is unchanged.</p>
+        {% if can_apply_suggestion %}
+          <form method="post" action="/api/plan/apply-readiness-suggestion" style="margin-top:8px;">
+            <button class="btn" type="submit">Apply suggestion</button>
+          </form>
+        {% endif %}
       {% endif %}
     {% else %}
       <p class="muted">No recovery check-in yet. Add one for a readiness badge and daily suggestion.</p>
@@ -30,7 +35,7 @@
         <a class="btn" href="/plan/wizard">Start today’s session</a>
       {% endif %}
       <form method="post" action="/api/plan/regenerate-next-week" style="margin:0;">
-        <button class="btn" type="submit">Regenerate next week</button>
+        <button class="btn" type="submit">Regenerate Next Week</button>
       </form>
     </div>
 

@@ -47,6 +47,12 @@
       currentAction.stop();
     }
     currentAction = next.reset().fadeIn(0.15).play();
+    if (!actions[name]) {
+      statusEl.textContent = `Pose '${name}' not found; showing default.`;
+      return;
+    }
+    if (currentAction && currentAction.stop) currentAction.stop();
+    currentAction = actions[name].reset().fadeIn(0.15).play();
     statusEl.textContent = `Pose: ${name}`;
   }
 

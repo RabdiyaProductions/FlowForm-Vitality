@@ -779,6 +779,93 @@ def test_content_pack_import_increases_templates(tmp_path, monkeypatch):
     assert after == before + 1
 
 
+
+
+def test_library_loads(tmp_path, monkeypatch):
+    monkeypatch.setenv('DB_PATH', str(tmp_path / 'library.db'))
+    app = create_app(port=5420)
+    client = app.test_client()
+
+    page = client.get('/library')
+    assert page.status_code == 200
+    assert b'Session Library' in page.data
+
+
+def test_library_start_manual_creates_session_log(tmp_path, monkeypatch):
+    monkeypatch.setenv('DB_PATH', str(tmp_path / 'library-manual.db'))
+    app = create_app(port=5421)
+    client = app.test_client()
+
+    import sqlite3
+    con = sqlite3.connect(app.config['DB_PATH'])
+    template_id = con.execute('SELECT id FROM session_template ORDER BY id LIMIT 1').fetchone()[0]
+    con.close()
+
+    started = client.post(f'/library/start-manual/{template_id}', follow_redirects=False)
+    assert started.status_code in (302, 303)
+
+    con = sqlite3.connect(app.config['DB_PATH'])
+    count = con.execute("SELECT COUNT(*) FROM session_log WHERE notes = 'Started from Library'").fetchone()[0]
+    con.close()
+    assert count >= 1
+
+
+def test_plan_wizard_generates_plan_from_curated_templates(tmp_path, monkeypatch):
+    monkeypatch.setenv('DB_PATH', str(tmp_path / 'plan-library.db'))
+    app = create_app(port=5422)
+    client = app.test_client()
+
+    create = client.post('/api/plan/create', json={
+        'goal': 'hybrid',
+        'days_per_week': 4,
+        'minutes_per_session': 50,
+        'disciplines': ['strength', 'cardio', 'conditioning', 'mobility', 'recovery'],
+    })
+    assert create.status_code == 200
+
+    import sqlite3
+    con = sqlite3.connect(app.config['DB_PATH'])
+    names = [r[0] for r in con.execute(
+        """
+        SELECT st.name
+        FROM plan_day pd
+        JOIN session_template st ON st.id = pd.template_id
+        ORDER BY pd.week, pd.day_index
+        """
+    ).fetchall()]
+    con.close()
+    assert names
+    assert any('Strength Base' in n or 'Cardio' in n or 'Conditioning' in n for n in names)
+
+
+def test_content_pack_roundtrip_preserves_block_fields(tmp_path, monkeypatch):
+    monkeypatch.setenv('DB_PATH', str(tmp_path / 'pack-roundtrip.db'))
+    app = create_app(port=5423)
+    client = app.test_client()
+
+    import sqlite3
+    con = sqlite3.connect(app.config['DB_PATH'])
+    template_id = con.execute('SELECT id FROM session_template ORDER BY id LIMIT 1').fetchone()[0]
+    con.close()
+
+    exported = client.post('/content-packs/export', data={'template_id': str(template_id)})
+    assert exported.status_code == 200
+
+    imported = client.post(
+        '/content-packs/import',
+        data={'pack_file': (io.BytesIO(exported.data), 'roundtrip.zip')},
+        content_type='multipart/form-data',
+    )
+    assert imported.status_code == 302
+
+    con = sqlite3.connect(app.config['DB_PATH'])
+    raw = con.execute('SELECT json_blocks FROM session_template ORDER BY id DESC LIMIT 1').fetchone()[0]
+    con.close()
+    payload = json.loads(raw)
+    block = payload['blocks'][0]
+    assert 'description' in block
+    assert 'target' in block
+
 def test_content_pack_import_rejects_traversal_zip(tmp_path, monkeypatch):
     monkeypatch.setenv('DB_PATH', str(tmp_path / 'content-traversal.db'))
     app = create_app(port=5417)
@@ -795,6 +882,60 @@ def test_content_pack_import_rejects_traversal_zip(tmp_path, monkeypatch):
     assert '/content-packs?error=' in imported.headers['Location']
 
 
+def test_avatars_page_loads(tmp_path, monkeypatch):
+    monkeypatch.setenv('DB_PATH', str(tmp_path / 'avatars.db'))
+    app = create_app(port=5430)
+    client = app.test_client()
+
+    resp = client.get('/avatars')
+    assert resp.status_code == 200
+    assert b'Avatars' in resp.data
+    assert b'Calm Coach' in resp.data
+
+
+def test_avatar_selection_persists(tmp_path, monkeypatch):
+    import sqlite3
+    monkeypatch.setenv('DB_PATH', str(tmp_path / 'avatar-persist.db'))
+    app = create_app(port=5431)
+    client = app.test_client()
+
+    con = sqlite3.connect(app.config['DB_PATH'])
+    avatar_id = con.execute("SELECT id FROM avatar_profile WHERE name = 'Performance Coach'").fetchone()[0]
+    con.close()
+
+    save = client.post('/avatars/select', data={'avatar_id': str(avatar_id), 'guidance_level': 'high'}, follow_redirects=True)
+    assert save.status_code == 200
+
+    con = sqlite3.connect(app.config['DB_PATH'])
+    row = con.execute('SELECT avatar_id, guidance_level FROM avatar_state LIMIT 1').fetchone()
+    con.close()
+    assert row is not None
+    assert int(row[0]) == int(avatar_id)
+    assert row[1] == 'high'
+
+
+def test_session_player_renders_coach_cue_panel(tmp_path, monkeypatch):
+    import sqlite3
+    monkeypatch.setenv('DB_PATH', str(tmp_path / 'avatar-player.db'))
+    app = create_app(port=5432)
+    client = app.test_client()
+
+    create = client.post('/api/plan/create', json={
+        'goal': 'hybrid',
+        'days_per_week': 3,
+        'minutes_per_session': 45,
+        'disciplines': ['strength', 'cardio', 'mobility', 'recovery', 'conditioning'],
+    })
+    assert create.status_code == 200
+
+    con = sqlite3.connect(app.config['DB_PATH'])
+    plan_day_id = con.execute('SELECT id FROM plan_day ORDER BY id LIMIT 1').fetchone()[0]
+    con.close()
+
+    page = client.get(f'/session/start/{plan_day_id}')
+    assert page.status_code == 200
+    assert b'Coach cue' in page.data
+    assert b'Read cues aloud' in page.data
 def test_make_release_script_outputs_clean_zip(tmp_path):
     import subprocess
     import sys

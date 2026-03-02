@@ -204,6 +204,7 @@
 - import succeeds without duplicating existing media with same `sha256`,
 - template count increases after importing a synthetic/new template,
 - traversal ZIPs are rejected,
+- player page shows the **Open media** button for imported block media.
 - player page shows the **Open media** button for imported block media,
 - Recent events on `/content-packs` include the import/export actions and counts.
 
@@ -218,6 +219,20 @@
 - [x] Test harness runs `tools/check_structure.py`, `pytest tests_smoke.py`, `pytest smoke_test.py`.
 
 
+## Library Journey
+**Steps**
+1. Open `/library`.
+2. Filter by discipline + minutes + level.
+3. Click **Preview** for a template and confirm block instructions/targets show.
+4. Click **Start as Manual Session** and complete it.
+5. If a plan exists, click **Add to plan day** from a library card.
+
+**Accept if**
+- `/library` loads with filter controls and template cards,
+- preview displays clear instructions and targets,
+- manual session is created from library action,
+- template can be appended to current plan day list,
+- session completion appears in dashboard analytics.
 ## Journey 15 — Template edit + per-block media playback
 **Steps**
 1. Open `/templates` and click **Edit** for a template.

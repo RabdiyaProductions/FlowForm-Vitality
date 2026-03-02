@@ -359,6 +359,13 @@ Exact click steps:
 - Prompt 5 lock-in: smoke tests include `/templates` and `/content-packs`; test runner executes structure + pytest checks.
 
 
+## Library Journey (2026-03-02)
+- Added built-in curated content pack seeding on startup (idempotent by template name).
+- Added `/library` with filters for discipline, duration range, level, and equipment keyword.
+- Library cards support **Preview**, **Start as Manual Session**, and **Add to plan day** (when plan exists).
+- Extended block schema to include `description` and `target`; session player now renders both.
+- Plan wizard generation now follows progression pattern (base → density → peak → deload) using curated library templates.
+- Content-pack export/import preserves block-level metadata fields (`description`, `target`, `media_id`, `media_sha256`).
 ### 8) Content Packs (template + media portability)
 #### Data model
 - `content_pack_event` audit table stores import/export history (`action`, filename, template/media counts, timestamp).

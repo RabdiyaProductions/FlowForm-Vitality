@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <h1>Session Library</h1>
+  <form method="get" action="/library" style="display:grid;grid-template-columns:repeat(4,minmax(140px,1fr));gap:10px;">
+    <div>
+      <label>Discipline</label>
+      <select name="discipline">
+        <option value="">All</option>
+        {% for d in disciplines %}
+          <option value="{{ d }}" {% if selected.discipline == d %}selected{% endif %}>{{ d|title }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>Level</label>
+      <select name="level">
+        <option value="">All</option>
+        {% for lvl in ['beginner','intermediate','advanced','all_levels'] %}
+          <option value="{{ lvl }}" {% if selected.level == lvl %}selected{% endif %}>{{ lvl|replace('_',' ')|title }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>Min minutes</label>
+      <input type="number" name="min_minutes" min="10" max="120" value="{{ selected.min_minutes }}" />
+    </div>
+    <div>
+      <label>Max minutes</label>
+      <input type="number" name="max_minutes" min="10" max="120" value="{{ selected.max_minutes }}" />
+    </div>
+    <div style="grid-column:1/-1;">
+      <label>Equipment keyword (optional)</label>
+      <input type="text" name="equipment" value="{{ selected.equipment }}" placeholder="dumbbell, bike, mat..." />
+    </div>
+    <div style="grid-column:1/-1;"><button class="btn" type="submit">Apply filters</button></div>
+  </form>
+</div>
+
+{% if preview_template %}
+<div class="card">
+  <h2>Preview: {{ preview_template.name }}</h2>
+  {% for block in preview_template.blocks %}
+    <p><strong>{{ block.name }}</strong> · {{ block.minutes }} min<br>
+    {% if block.description %}<span class="muted">{{ block.description }}</span><br>{% endif %}
+    {% if block.target %}<em>{{ block.target }}</em>{% endif %}</p>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% for t in templates %}
+<div class="card">
+  <h3 style="margin:0;">{{ t.name }}</h3>
+  <p class="muted">{{ t.discipline|title }} · {{ t.duration_minutes }} min · {{ t.level|replace('_',' ')|title }}</p>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <a class="btn" href="/library?discipline={{ selected.discipline }}&level={{ selected.level }}&min_minutes={{ selected.min_minutes }}&max_minutes={{ selected.max_minutes }}&equipment={{ selected.equipment }}&preview_id={{ t.id }}">Preview</a>
+    <form method="post" action="/library/start-manual/{{ t.id }}"><button class="btn" type="submit">Start as Manual Session</button></form>
+    {% if has_plan %}
+    <form method="post" action="/library/add-to-plan-day/{{ t.id }}"><button class="btn" type="submit">Add to plan day</button></form>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

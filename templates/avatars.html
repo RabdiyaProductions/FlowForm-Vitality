@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <h1>Avatars</h1>
+  <p class="muted">Choose your coach persona and guidance intensity.</p>
+  <form method="post" action="/avatars/select">
+    <label>Coach persona</label>
+    <select name="avatar_id" required>
+      {% for a in avatars %}
+        <option value="{{ a.id }}" {% if active.id == a.id %}selected{% endif %}>{{ a.name }} — {{ a.style }}</option>
+      {% endfor %}
+    </select>
+
+    <label>Guidance level</label>
+    <select name="guidance_level" required>
+      {% for g in ['low','medium','high'] %}
+        <option value="{{ g }}" {% if active.guidance_level == g %}selected{% endif %}>{{ g|title }}</option>
+      {% endfor %}
+    </select>
+
+    <button class="btn" type="submit">Save coach settings</button>
+  </form>
+</div>
+{% endblock %}

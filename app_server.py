@@ -90,22 +90,13 @@ def _ext_for_name(name: str) -> str:
     ext = Path(name or "").suffix.lower()
     return ext if ext else ""
 
-DISCIPLINES = ["strength", "cardio", "mobility", "recovery", "conditioning", "endurance"]
+DISCIPLINES = ["strength", "cardio", "mobility", "recovery", "breathwork", "flexibility", "conditioning", "mindfulness"]
 GOAL_DEFAULTS = {
-    "strength": ["strength", "mobility", "recovery", "conditioning", "cardio"],
+    "strength": ["strength", "conditioning", "mobility", "recovery", "breathwork"],
     "fat_loss": ["conditioning", "cardio", "strength", "mobility", "recovery"],
-    "mobility": ["mobility", "recovery", "strength", "cardio", "conditioning"],
-    "stress": ["recovery", "mobility", "cardio", "strength", "conditioning"],
-    "hybrid": ["strength", "cardio", "mobility", "conditioning", "recovery"],
-}
-
-DISCIPLINES = ["strength", "cardio", "mobility", "recovery", "conditioning", "endurance"]
-GOAL_DEFAULTS = {
-    "strength": ["strength", "mobility", "recovery", "conditioning", "cardio"],
-    "fat_loss": ["conditioning", "cardio", "strength", "mobility", "recovery"],
-    "mobility": ["mobility", "recovery", "strength", "cardio", "conditioning"],
-    "stress": ["recovery", "mobility", "cardio", "strength", "conditioning"],
-    "hybrid": ["strength", "cardio", "mobility", "conditioning", "recovery"],
+    "mobility": ["mobility", "flexibility", "recovery", "breathwork", "mindfulness"],
+    "stress": ["mindfulness", "breathwork", "recovery", "mobility", "flexibility"],
+    "hybrid": ["strength", "cardio", "conditioning", "mobility", "recovery"],
 }
 
 
@@ -427,6 +418,32 @@ def apply_schema_migrations(connection: sqlite3.Connection) -> None:
 
     connection.execute(
         """
+        CREATE TABLE IF NOT EXISTS avatar_profile (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            style TEXT NOT NULL,
+            voice_mode TEXT NOT NULL,
+            accent TEXT NOT NULL,
+            guidance_level TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS avatar_state (
+            user_id INTEGER PRIMARY KEY,
+            avatar_id INTEGER NOT NULL,
+            guidance_level TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY(avatar_id) REFERENCES avatar_profile(id)
+        )
+        """
+    )
+
+    connection.execute(
+        """
         CREATE TABLE IF NOT EXISTS _healthcheck (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             checked_at TEXT NOT NULL
@@ -436,30 +453,61 @@ def apply_schema_migrations(connection: sqlite3.Connection) -> None:
     connection.execute("INSERT INTO _healthcheck(checked_at) VALUES (?)", (now,))
 
 
+BUILTIN_TEMPLATE_PACK_VERSION = "2026.03.library.v1"
+
+
+BUILTIN_TEMPLATES: list[dict] = [
+    {
+        "name": "Strength Base: Squat + Push",
+        "discipline": "strength",
+        "duration_minutes": 45,
+        "level": "beginner",
+        "json_blocks": {
+            "blocks": [
+                {"name": "Dynamic Warm-up", "minutes": 8, "description": "Prime hips, shoulders, and trunk.", "target": "RPE 3-4"},
+                {"name": "Back Squat", "minutes": 15, "description": "Controlled reps with full range.", "target": "4x6 @ 3010 tempo"},
+                {"name": "Dumbbell Press", "minutes": 14, "description": "Horizontal push focus.", "target": "4x8 @ RPE 7"},
+                {"name": "Cooldown Mobility", "minutes": 8, "description": "Downshift and restore breathing.", "target": "Nasal breathing + long exhale"},
+            ]
+        },
+    },
+    {"name": "Strength Peak: Hinge + Pull", "discipline": "strength", "duration_minutes": 60, "level": "intermediate", "json_blocks": {"blocks": [{"name": "Warm-up Prep", "minutes": 10, "description": "Posterior chain activation.", "target": "Band + hinge prep"}, {"name": "Deadlift", "minutes": 18, "description": "Primary strength lift.", "target": "5x4 @ RPE 8"}, {"name": "Row Superset", "minutes": 18, "description": "Upper-back volume.", "target": "4 rounds: row + face pull"}, {"name": "Core Brace", "minutes": 8, "description": "Trunk stability circuit.", "target": "3 rounds, controlled breathing"}, {"name": "Cooldown", "minutes": 6, "description": "Lower HR gradually.", "target": "Walk + mobility"}] }},
+    {"name": "Cardio Base Zone 2", "discipline": "cardio", "duration_minutes": 40, "level": "beginner", "json_blocks": {"blocks": [{"name": "Ramp-up", "minutes": 8, "description": "Progressively elevate HR.", "target": "RPE 3"}, {"name": "Zone 2 Sustain", "minutes": 26, "description": "Steady aerobic work.", "target": "Talk-test pass, RPE 4-5"}, {"name": "Cooldown", "minutes": 6, "description": "Ease out of effort.", "target": "RPE 2"}] }},
+    {"name": "Cardio Density Intervals", "discipline": "cardio", "duration_minutes": 50, "level": "intermediate", "json_blocks": {"blocks": [{"name": "Warm-up", "minutes": 10, "description": "Prime mechanics and cadence.", "target": "RPE 3-4"}, {"name": "Tempo Intervals", "minutes": 32, "description": "Alternating tempo and float.", "target": "8 x (2 min hard / 2 min steady)"}, {"name": "Cooldown", "minutes": 8, "description": "Return to baseline.", "target": "Nasal breathing"}] }},
+    {"name": "Mobility Spine + Hips", "discipline": "mobility", "duration_minutes": 35, "level": "all_levels", "json_blocks": {"blocks": [{"name": "Breathing Reset", "minutes": 5, "description": "Reset ribcage and pelvis.", "target": "4s inhale / 6s exhale"}, {"name": "Spine Waves", "minutes": 12, "description": "Thoracic and lumbar articulation.", "target": "Slow controlled reps"}, {"name": "Hip Rotation Flow", "minutes": 12, "description": "Internal/external rotation work.", "target": "3 rounds each side"}, {"name": "Integration", "minutes": 6, "description": "Combine new range into movement.", "target": "Light gait drill"}] }},
+    {"name": "Recovery Reset", "discipline": "recovery", "duration_minutes": 30, "level": "all_levels", "json_blocks": {"blocks": [{"name": "Downshift Breathing", "minutes": 8, "description": "Shift to recovery state.", "target": "Long exhale emphasis"}, {"name": "Tissue Quality", "minutes": 12, "description": "Gentle mobility and release.", "target": "Pain-free range only"}, {"name": "Parasympathetic Finish", "minutes": 10, "description": "Calm nervous system.", "target": "Box breathing"}] }},
+    {"name": "Breathwork Performance Prep", "discipline": "breathwork", "duration_minutes": 30, "level": "all_levels", "json_blocks": {"blocks": [{"name": "Cadence Setup", "minutes": 8, "description": "Set relaxed breathing cadence.", "target": "4-4 rhythm"}, {"name": "CO2 Tolerance Ladder", "minutes": 14, "description": "Controlled breath holds.", "target": "6 rounds, easy discomfort"}, {"name": "Recovery Drift", "minutes": 8, "description": "Return to baseline.", "target": "Nasal-only"}] }},
+    {"name": "Flexibility Lower Body", "discipline": "flexibility", "duration_minutes": 40, "level": "beginner", "json_blocks": {"blocks": [{"name": "Warm Tissue Prep", "minutes": 8, "description": "Light pulse raise.", "target": "RPE 3"}, {"name": "Hamstring + Hip Flexor", "minutes": 20, "description": "Long-duration holds.", "target": "45-60s holds"}, {"name": "Ankle + Calf", "minutes": 7, "description": "Improve dorsiflexion.", "target": "3 sets each side"}, {"name": "Cool Finish", "minutes": 5, "description": "Relax and reset.", "target": "Slow nasal breathing"}] }},
+    {"name": "Conditioning Engine Builder", "discipline": "conditioning", "duration_minutes": 55, "level": "intermediate", "json_blocks": {"blocks": [{"name": "Warm-up", "minutes": 10, "description": "Prepare for mixed-modal work.", "target": "Movement prep circuit"}, {"name": "Mixed Circuit", "minutes": 36, "description": "Work-rest conditioning sets.", "target": "6 rounds 4:2"}, {"name": "Cooldown", "minutes": 9, "description": "Bring HR down and unload.", "target": "Walk + breathe"}] }},
+    {"name": "Mindfulness Recovery Practice", "discipline": "mindfulness", "duration_minutes": 30, "level": "all_levels", "json_blocks": {"blocks": [{"name": "Body Scan", "minutes": 10, "description": "Notice tension without judgement.", "target": "Progressive attention"}, {"name": "Focused Attention", "minutes": 12, "description": "Single-point breath focus.", "target": "Counted breaths"}, {"name": "Reflection", "minutes": 8, "description": "Short journaling close.", "target": "2-3 key notes"}] }},
+]
+
+
 def seed_templates(connection: sqlite3.Connection) -> None:
-    existing_count = connection.execute("SELECT COUNT(*) FROM session_template").fetchone()[0]
-    if existing_count > 0:
-        return
-
     now = utc_now_iso()
-    templates = [
-        ("Strength Foundation A", "strength", 45, "beginner", '{"blocks":[{"name":"warmup","minutes":8},{"name":"compound_lifts","minutes":28},{"name":"cooldown","minutes":9}]}'),
-        ("Strength Progression B", "strength", 60, "intermediate", '{"blocks":[{"name":"warmup","minutes":10},{"name":"main_lifts","minutes":38},{"name":"accessory","minutes":8},{"name":"cooldown","minutes":4}]}'),
-        ("Zone 2 Base Ride", "cardio", 50, "beginner", '{"blocks":[{"name":"warmup","minutes":10},{"name":"steady_state","minutes":35},{"name":"cooldown","minutes":5}]}'),
-        ("Tempo Intervals Run", "cardio", 40, "intermediate", '{"blocks":[{"name":"warmup","minutes":8},{"name":"tempo_intervals","minutes":26},{"name":"cooldown","minutes":6}]}'),
-        ("Mobility Restore", "mobility", 30, "all_levels", '{"blocks":[{"name":"breath","minutes":5},{"name":"hips_spine","minutes":20},{"name":"reset","minutes":5}]}'),
-        ("Yoga Recovery Flow", "recovery", 35, "all_levels", '{"blocks":[{"name":"flow","minutes":25},{"name":"downregulate","minutes":10}]}'),
-        ("HIIT Power Ladder", "conditioning", 32, "advanced", '{"blocks":[{"name":"warmup","minutes":6},{"name":"ladder","minutes":20},{"name":"cooldown","minutes":6}]}'),
-        ("Endurance Long Session", "endurance", 75, "intermediate", '{"blocks":[{"name":"warmup","minutes":10},{"name":"steady_endurance","minutes":55},{"name":"cooldown","minutes":10}]}'),
-    ]
-
-    connection.executemany(
-        """
-        INSERT INTO session_template (name, discipline, duration_minutes, level, json_blocks, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        """,
-        [(name, discipline, duration, level, blocks, now, now) for name, discipline, duration, level, blocks in templates],
-    )
+    for tpl in BUILTIN_TEMPLATES:
+        name = str(tpl["name"])
+        exists = connection.execute("SELECT id FROM session_template WHERE name = ? LIMIT 1", (name,)).fetchone()
+        if exists:
+            continue
+        duration = int(tpl["duration_minutes"])
+        if duration < 30 or duration > 75:
+            logging.getLogger(__name__).warning("Template '%s' has %s min (outside preferred 30-75 range)", name, duration)
+        connection.execute(
+            """
+            INSERT INTO session_template (name, discipline, duration_minutes, level, json_blocks, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                name,
+                str(tpl["discipline"]),
+                duration,
+                str(tpl["level"]),
+                json.dumps(tpl["json_blocks"]),
+                now,
+                now,
+            ),
+        )
 
 
 def get_or_create_founder_user(connection: sqlite3.Connection) -> int:
@@ -620,6 +668,16 @@ def choose_template_for_day(pool: list[dict], discipline: str, target_minutes: i
     return ranked[offset % len(ranked)]
 
 
+def week_target_minutes(base_minutes: int, week: int) -> int:
+    if week == 1:  # build base
+        return clamp_int(base_minutes - 3, 30, 75)
+    if week == 2:  # increase density
+        return clamp_int(base_minutes + 2, 30, 75)
+    if week == 3:  # peak
+        return clamp_int(base_minutes + 5, 30, 75)
+    return clamp_int(base_minutes - 8, 30, 75)  # deload
+
+
 def build_plan_structure(
     pool: list[dict],
     ordered_disciplines: list[str],
@@ -628,18 +686,23 @@ def build_plan_structure(
     weeks: int,
 ) -> list[dict]:
     items: list[dict] = []
-    for week in range(1, weeks + 1):
-        # Progressive structure: weeks 1-3 build, week 4 deload.
-        if week <= 2:
-            target = minutes_per_session
-        elif week == 3:
-            target = clamp_int(minutes_per_session + 5, 30, 75)
-        else:
-            target = clamp_int(minutes_per_session - 5, 30, 75)
+    used_template_ids: set[int] = set()
 
+    for week in range(1, weeks + 1):
+        target = week_target_minutes(minutes_per_session, week)
         for day_index in range(1, days_per_week + 1):
-            discipline = ordered_disciplines[(day_index - 1) % len(ordered_disciplines)]
-            choice = choose_template_for_day(pool, discipline, target, offset=week + day_index)
+            discipline = ordered_disciplines[(day_index - 1 + (week - 1)) % len(ordered_disciplines)]
+            preferred = [item for item in pool if item["discipline"] == discipline]
+            ranked = sorted(
+                preferred if preferred else pool,
+                key=lambda item: (
+                    item["id"] in used_template_ids,
+                    abs(item["duration"] - target),
+                    item["id"],
+                ),
+            )
+            choice = ranked[(week + day_index - 2) % len(ranked)]
+            used_template_ids.add(choice["id"])
             items.append(
                 {
                     "week": week,
@@ -677,31 +740,95 @@ def write_audit(connection: sqlite3.Connection, event: str, payload: dict) -> No
     )
 
 
+def ensure_avatar_seed(connection: sqlite3.Connection) -> None:
+    now = utc_now_iso()
+    seeds = [
+        ("Calm Coach", "recovery/mobility", "text", "neutral", "medium"),
+        ("Performance Coach", "strength/cardio", "text", "neutral", "medium"),
+        ("Mindful Guide", "breathwork/mindfulness", "text", "neutral", "medium"),
+    ]
+    for name, style, voice_mode, accent, guidance in seeds:
+        exists = connection.execute("SELECT id FROM avatar_profile WHERE name = ? LIMIT 1", (name,)).fetchone()
+        if exists:
+            continue
+        connection.execute(
+            """
+            INSERT INTO avatar_profile(name, style, voice_mode, accent, guidance_level, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (name, style, voice_mode, accent, guidance, now),
+        )
+
+
+def active_avatar(connection: sqlite3.Connection, user_id: int) -> dict:
+    connection.row_factory = sqlite3.Row
+    state = connection.execute(
+        "SELECT avatar_id, guidance_level FROM avatar_state WHERE user_id = ?",
+        (user_id,),
+    ).fetchone()
+    avatar = None
+    if state is not None:
+        avatar = connection.execute(
+            "SELECT id, name, style, voice_mode, accent, guidance_level, created_at FROM avatar_profile WHERE id = ?",
+            (int(state["avatar_id"]),),
+        ).fetchone()
+    if avatar is None:
+        avatar = connection.execute(
+            "SELECT id, name, style, voice_mode, accent, guidance_level, created_at FROM avatar_profile ORDER BY id ASC LIMIT 1"
+        ).fetchone()
+    if avatar is None:
+        return {"id": 0, "name": "Coach", "style": "balanced", "voice_mode": "text", "accent": "neutral", "guidance_level": "medium"}
+    guidance = str(state["guidance_level"]) if state is not None and state["guidance_level"] else str(avatar["guidance_level"])
+    return {
+        "id": int(avatar["id"]),
+        "name": str(avatar["name"]),
+        "style": str(avatar["style"]),
+        "voice_mode": str(avatar["voice_mode"]),
+        "accent": str(avatar["accent"]),
+        "guidance_level": guidance if guidance in {"low", "medium", "high"} else "medium",
+    }
+
+
+def coach_cue_text(avatar: dict, discipline: str, block: dict, guidance_level: str) -> str:
+    name = str(block.get("name") or "Next block")
+    desc = str(block.get("description") or "").strip()
+    target = str(block.get("target") or "").strip()
+    disc = (discipline or "training").replace("_", " ")
+    level = guidance_level if guidance_level in {"low", "medium", "high"} else "medium"
+
+    if level == "low":
+        return f"{name}: {target or 'steady quality work'}."
+    if level == "high":
+        detail = f" Focus: {desc}." if desc else ""
+        tgt = f" Target: {target}." if target else ""
+        return f"{avatar.get('name','Coach')} | {disc.title()} cue — {name}.{detail}{tgt} Stay controlled and breathe through reps."
+    # medium
+    return f"{name} — {desc or 'move with control'} {('· ' + target) if target else ''}".strip()
+
 
 def blocks_from_json(raw: str) -> list[dict]:
     """
-    Parse a session template's JSON payload into a list of normalized block dictionaries.
+    Parse a session template's JSON payload into normalized block dictionaries.
 
-    Each block in the returned list will always contain the following keys:
-      - name (str): the display title for the block
-      - minutes (int): duration in minutes (>= 0)
-      - seconds (int): duration in seconds (minutes * 60)
-      - media_id (int | None): optional ID of a media_item attached to this block
-
-    If parsing fails or the JSON structure doesn't match expectations, an empty list is returned.
+    Returned keys per block:
+      - name (str)
+      - minutes (int)
+      - seconds (int)
+      - description (str)
+      - target (str)
+      - media_id (int | None)
     """
     try:
         payload = json.loads(raw)
     except Exception:
         return []
-    # We expect a top-level dict with a "blocks" list.
+
     blocks = payload.get("blocks") if isinstance(payload, dict) else None
     if not isinstance(blocks, list):
         return []
 
     normalized: list[dict] = []
     for idx, block in enumerate(blocks, start=1):
-        # Skip any non-dict block definitions.
         if not isinstance(block, dict):
             continue
         name = str(block.get("name", f"Block {idx}")).strip() or f"Block {idx}"
@@ -710,19 +837,27 @@ def blocks_from_json(raw: str) -> list[dict]:
             minutes_int = max(0, int(minutes))
         except (TypeError, ValueError):
             minutes_int = 0
-        # Carry forward media_id if present and numeric; else None.
+
         media_id_val: int | None = None
         raw_media = block.get("media_id")
         if isinstance(raw_media, int):
             media_id_val = raw_media
         elif isinstance(raw_media, str) and raw_media.isdigit():
             media_id_val = int(raw_media)
-        normalized.append({
-            "name": name,
-            "minutes": minutes_int,
-            "seconds": minutes_int * 60,
-            "media_id": media_id_val,
-        })
+
+        description = str(block.get("description", "")).strip()
+        target = str(block.get("target", "")).strip()
+
+        normalized.append(
+            {
+                "name": name,
+                "minutes": minutes_int,
+                "seconds": minutes_int * 60,
+                "description": description,
+                "target": target,
+                "media_id": media_id_val,
+            }
+        )
     return normalized
 
 def compute_readiness_score(sleep_hours: float, stress: int, soreness: int, mood: int) -> tuple[int, str]:
@@ -1341,6 +1476,7 @@ def create_app(port: int | None = None) -> Flask:
             apply_schema_migrations(connection)
             get_or_create_founder_user(connection)
             seed_templates(connection)
+            ensure_avatar_seed(connection)
             connection.commit()
             connection.close()
             return {"ok": True, "message": "db_ready"}
@@ -1354,6 +1490,7 @@ def create_app(port: int | None = None) -> Flask:
             apply_schema_migrations(connection)
             get_or_create_founder_user(connection)
             seed_templates(connection)
+            ensure_avatar_seed(connection)
             connection.commit()
             connection.close()
             return {"ok": True, "message": "db_ready"}
@@ -2094,6 +2231,7 @@ def create_app(port: int | None = None) -> Flask:
             (int(session_id),),
         ).fetchone()
 
+        avatar = active_avatar(connection, user_id)
         media = None
         try:
             media_id = row["media_id"] if isinstance(row, sqlite3.Row) else row.get("media_id")
@@ -2117,12 +2255,20 @@ def create_app(port: int | None = None) -> Flask:
                     "size_bytes": int(mrow[4]),
                     "category": _media_category(str(mrow[3])),
                 }
+        cue_block = {
+            "name": str(row["title"]),
+            "description": str(row["notes"] or ""),
+            "target": f"{int(row['duration_minutes'])} min @ intensity {row['intensity']}",
+        }
+        coach_cue = coach_cue_text(avatar, str(row["category"]), cue_block, str(avatar.get("guidance_level", "medium")))
         connection.close()
         return render_template(
             "session_detail.html",
             session=dict(row),
             metric=dict(metric) if metric else None,
             media=media,
+            coach_cue=coach_cue,
+            avatar=avatar,
             error=None,
         )
 
@@ -2555,7 +2701,170 @@ def create_app(port: int | None = None) -> Flask:
             suggestion_text=suggestion_text,
         )
 
-    @app.get("/templates")
+    @app.get("/library")
+    @require_login
+    def session_library():
+        discipline = (request.args.get("discipline") or "").strip().lower()
+        level = (request.args.get("level") or "").strip().lower()
+        equipment = (request.args.get("equipment") or "").strip().lower()
+        min_m = clamp_int(int(request.args.get("min_minutes") or 30), 10, 120)
+        max_m = clamp_int(int(request.args.get("max_minutes") or 75), 10, 120)
+        if min_m > max_m:
+            min_m, max_m = max_m, min_m
+
+        connection = sqlite3.connect(db_path)
+        connection.row_factory = sqlite3.Row
+        user_id = current_user_id(connection)
+        plan = current_plan_record(connection, user_id)
+        rows = connection.execute(
+            """
+            SELECT id, name, discipline, duration_minutes, level, json_blocks
+            FROM session_template
+            WHERE duration_minutes BETWEEN ? AND ?
+            ORDER BY discipline ASC, duration_minutes ASC, id ASC
+            """,
+            (min_m, max_m),
+        ).fetchall()
+
+        templates = []
+        for row in rows:
+            disc = str(row["discipline"] or "").lower()
+            lvl = str(row["level"] or "").lower()
+            blocks = blocks_from_json(str(row["json_blocks"] or ""))
+            search_blob = " ".join(
+                [str(row["name"])] + [f"{b.get('name', '')} {b.get('description', '')} {b.get('target', '')}" for b in blocks]
+            ).lower()
+            if discipline and disc != discipline:
+                continue
+            if level and lvl != level:
+                continue
+            if equipment and equipment not in search_blob:
+                continue
+            templates.append(
+                {
+                    "id": int(row["id"]),
+                    "name": str(row["name"]),
+                    "discipline": disc,
+                    "duration_minutes": int(row["duration_minutes"]),
+                    "level": lvl,
+                    "blocks": blocks,
+                }
+            )
+
+        preview_id = int(request.args.get("preview_id") or 0)
+        preview_template = next((t for t in templates if t["id"] == preview_id), None)
+        connection.close()
+
+        return render_template(
+            "library.html",
+            templates=templates,
+            disciplines=DISCIPLINES,
+            selected={"discipline": discipline, "level": level, "equipment": equipment, "min_minutes": min_m, "max_minutes": max_m},
+            preview_template=preview_template,
+            has_plan=bool(plan),
+        )
+
+    @app.post("/library/start-manual/<int:template_id>")
+    @require_login
+    def library_start_manual(template_id: int):
+        now = utc_now_iso()
+        connection = sqlite3.connect(db_path)
+        connection.row_factory = sqlite3.Row
+        user_id = current_user_id(connection)
+        row = connection.execute(
+            "SELECT id, name, discipline, duration_minutes, level FROM session_template WHERE id = ?",
+            (template_id,),
+        ).fetchone()
+        if row is None:
+            connection.close()
+            return redirect(url_for("session_library"))
+
+        intensity = "6" if str(row["level"]).lower() in {"intermediate", "advanced"} else "5"
+        training_load = round(int(row["duration_minutes"]) * (0.6 + (int(intensity) * 0.06)), 2)
+        cursor = connection.execute(
+            """
+            INSERT INTO session_log(user_id, title, category, intensity, duration_minutes, training_load, notes, media_id, created_at, completed_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL, ?)
+            """,
+            (user_id, str(row["name"]), str(row["discipline"]), intensity, int(row["duration_minutes"]), training_load, "Started from Library", now, now),
+        )
+        session_id = int(cursor.lastrowid)
+        connection.commit()
+        connection.close()
+        return redirect(url_for("session_detail", session_id=session_id))
+
+    @app.post("/library/add-to-plan-day/<int:template_id>")
+    @require_login
+    def library_add_to_plan_day(template_id: int):
+        connection = sqlite3.connect(db_path)
+        connection.row_factory = sqlite3.Row
+        user_id = current_user_id(connection)
+        plan = current_plan_record(connection, user_id)
+        if not plan:
+            connection.close()
+            return redirect(url_for("session_library"))
+
+        now = utc_now_iso()
+        row = connection.execute("SELECT name FROM session_template WHERE id = ?", (template_id,)).fetchone()
+        if row is None:
+            connection.close()
+            return redirect(url_for("session_library"))
+
+        max_week = int(connection.execute("SELECT COALESCE(MAX(week), 1) FROM plan_day WHERE plan_id = ?", (int(plan["id"]),)).fetchone()[0] or 1)
+        max_day = int(connection.execute("SELECT COALESCE(MAX(day_index), 0) FROM plan_day WHERE plan_id = ? AND week = ?", (int(plan["id"]), max_week)).fetchone()[0] or 0)
+        connection.execute(
+            """
+            INSERT INTO plan_day (plan_id, week, day_index, template_id, title, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (int(plan["id"]), max_week, max_day + 1, template_id, f"Week {max_week} Day {max_day + 1}: {row['name']}", now, now),
+        )
+        connection.commit()
+        connection.close()
+        return redirect(url_for("plan_current"))
+
+
+    @app.get("/avatars")
+    @require_login
+    def avatars_page():
+        connection = sqlite3.connect(db_path)
+        connection.row_factory = sqlite3.Row
+        user_id = current_user_id(connection)
+        avatars = connection.execute(
+            "SELECT id, name, style, voice_mode, accent, guidance_level, created_at FROM avatar_profile ORDER BY id ASC"
+        ).fetchall()
+        active = active_avatar(connection, user_id)
+        connection.close()
+        return render_template("avatars.html", avatars=[dict(r) for r in avatars], active=active)
+
+    @app.post("/avatars/select")
+    @require_login
+    def avatars_select():
+        avatar_id = int(request.form.get("avatar_id") or 0)
+        guidance_level = (request.form.get("guidance_level") or "medium").strip().lower()
+        if guidance_level not in {"low", "medium", "high"}:
+            guidance_level = "medium"
+
+        connection = sqlite3.connect(db_path)
+        connection.row_factory = sqlite3.Row
+        user_id = current_user_id(connection)
+        exists = connection.execute("SELECT id FROM avatar_profile WHERE id = ?", (avatar_id,)).fetchone()
+        if exists is None:
+            connection.close()
+            return redirect(url_for("avatars_page"))
+
+        now = utc_now_iso()
+        connection.execute(
+            """
+            INSERT INTO avatar_state(user_id, avatar_id, guidance_level, updated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET avatar_id = excluded.avatar_id, guidance_level = excluded.guidance_level, updated_at = excluded.updated_at
+            """,
+            (user_id, avatar_id, guidance_level, now),
+        )
+        connection.commit()
+        connection.close()
+        return redirect(url_for("avatars_page"))
 
     @app.get("/templates")
     @require_login
@@ -2888,6 +3197,9 @@ def create_app(port: int | None = None) -> Flask:
                 remapped_blocks.append(mapped)
 
             template_blocks_json = json.dumps({"blocks": remapped_blocks})
+            duration_minutes = int(template.get("duration_minutes") or 30)
+            if duration_minutes < 30 or duration_minutes > 75:
+                logging.getLogger(__name__).warning("Imported template %s has %s min (outside preferred 30-75 range)", str(template.get("name") or "Imported Template"), duration_minutes)
             connection.execute(
                 """
                 INSERT INTO session_template(name, discipline, duration_minutes, level, json_blocks, created_at, updated_at)
@@ -2896,7 +3208,7 @@ def create_app(port: int | None = None) -> Flask:
                 (
                     str(template.get("name") or "Imported Template"),
                     str(template.get("discipline") or "strength"),
-                    int(template.get("duration_minutes") or 30),
+                    duration_minutes,
                     str(template.get("level") or "all_levels"),
                     template_blocks_json,
                     now,
@@ -3082,22 +3394,32 @@ def create_app(port: int | None = None) -> Flask:
         row = connection.execute(
             """
             SELECT pd.id AS plan_day_id, pd.title, pd.week, pd.day_index, st.name AS template_name,
-                   st.duration_minutes, st.json_blocks
+                   st.discipline, st.duration_minutes, st.json_blocks
             FROM plan_day pd
             LEFT JOIN session_template st ON st.id = pd.template_id
             WHERE pd.id = ?
             """,
             (plan_day_id,),
         ).fetchone()
-        connection.close()
-
         if row is None:
+            connection.close()
             return jsonify({"error": "plan_day_not_found"}), 404
 
+        user_id = current_user_id(connection)
+        avatar = active_avatar(connection, user_id)
+        connection.close()
+
         blocks = blocks_from_json(row["json_blocks"] or "")
+        discipline = str(row["discipline"] or "training")
+        guidance = str(avatar.get("guidance_level", "medium"))
+        for b in blocks:
+            b["coach_cue"] = coach_cue_text(avatar, discipline, b, guidance)
+
         if not blocks:
             duration = int(row["duration_minutes"] or 30)
-            blocks = [{"name": row["template_name"] or "Session", "minutes": duration, "seconds": duration * 60}]
+            fallback = {"name": row["template_name"] or "Session", "minutes": duration, "seconds": duration * 60, "description": "", "target": ""}
+            fallback["coach_cue"] = coach_cue_text(avatar, discipline, fallback, guidance)
+            blocks = [fallback]
 
         return render_template(
             "session_start.html",
@@ -3105,10 +3427,12 @@ def create_app(port: int | None = None) -> Flask:
                 "plan_day_id": int(row["plan_day_id"]),
                 "title": row["title"] or row["template_name"] or "Session",
                 "template_name": row["template_name"] or "Session",
+                "discipline": discipline,
                 "week": int(row["week"]),
                 "day_index": int(row["day_index"]),
                 "blocks": blocks,
             },
+            avatar=avatar,
         )
 
     @app.post("/api/session/finish")
@@ -3149,6 +3473,7 @@ def create_app(port: int | None = None) -> Flask:
         return jsonify({"ok": True, "completion_id": completion_id, "redirect": f"/session/summary/{completion_id}"})
 
     @app.get("/session/summary/<int:completion_id>")
+    @app.get("/session/summary/<int:completion_id>")
     @require_login
     def session_summary(completion_id: int):
         connection = sqlite3.connect(db_path)
@@ -3170,7 +3495,6 @@ def create_app(port: int | None = None) -> Flask:
             return jsonify({"error": "completion_not_found"}), 404
 
         return render_template("session_summary.html", completion=row)
-
 
     @app.post("/api/timeline/update")
     def api_timeline_update():
@@ -3488,6 +3812,8 @@ def create_app(port: int | None = None) -> Flask:
             {"path": "/restore", "methods": ["GET"], "description": "Backup restore page"},
             {"path": "/templates", "methods": ["GET"], "description": "Session template catalog"},
             {"path": "/content-packs", "methods": ["GET"], "description": "Content pack import/export hub"},
+            {"path": "/library", "methods": ["GET"], "description": "Session library with filters and quick actions"},
+            {"path": "/avatars", "methods": ["GET"], "description": "Coach persona selection"},
             {"path": "/content-packs/export", "methods": ["POST"], "description": "Export selected templates and referenced media"},
             {"path": "/content-packs/import", "methods": ["POST"], "description": "Import content pack ZIP"},
             {"path": "/api/recovery/checkin", "methods": ["POST"], "description": "Persist daily recovery check-in"},
@@ -3558,6 +3884,8 @@ def create_app(port: int | None = None) -> Flask:
             '/restore',
             '/templates',
             '/content-packs',
+            '/library',
+            '/avatars',
             '/content-packs/export',
             '/content-packs/import',
             '/api/recovery/checkin',
@@ -3630,11 +3958,12 @@ def create_app(port: int | None = None) -> Flask:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run FlowForm Flask server")
+    parser.add_argument("--host", default=None, help="Host/interface to bind")
     parser.add_argument("--port", type=int, default=None, help="Port to bind")
     args = parser.parse_args()
 
     app = create_app(port=args.port)
-    host = os.getenv("HOST", "127.0.0.1")
+    host = args.host or os.getenv("HOST", "0.0.0.0")
     app.run(host=host, port=app.config["PORT"], debug=False)
 
 

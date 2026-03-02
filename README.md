@@ -62,3 +62,28 @@ Common settings:
 - `site/` optional static marketing pages (not required for app boot)
 - `data/` local SQLite DB location (created at runtime)
 
+
+
+## Codex preview / Linux boot
+
+For Linux-based preview environments (including Codex), use the root boot entrypoints:
+
+- `start.sh`
+  - installs dependencies with `pip install -r requirements.txt`
+  - starts app with `python run_server.py --host 0.0.0.0 --port $PORT`
+- `Procfile`
+  - provides platform process declaration: `web: python run_server.py --host 0.0.0.0 --port $PORT`
+
+Notes:
+- The app binds `0.0.0.0` for container reachability.
+- Local access still works via `http://localhost:<PORT>` (or `127.0.0.1:<PORT>`).
+
+
+## Session Library
+
+Use `/library` to browse premium built-in sessions and filter by discipline, duration, level, and equipment keywords.
+
+From each card you can:
+- Preview block-by-block instructions
+- Start as a manual session instantly
+- Add the template to your current plan day stack (when a plan exists)

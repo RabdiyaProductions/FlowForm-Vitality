@@ -8,6 +8,8 @@
 
 <div class="card">
   <h2 id="blockTitle">Block</h2>
+  <p class="muted" id="blockDescription"></p>
+  <p><strong id="blockTarget"></strong></p>
   <p>Block <span id="blockIndex">1</span>/{{ session.blocks|length }}</p>
   <p>Time left: <strong><span id="timeLeft">00:00</span></strong></p>
   <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;">
@@ -22,6 +24,16 @@
     <div id="mediaWrap" style="display:none; margin-top:12px;">
       <a class="btn" id="mediaBtn" target="_blank" href="#">Open media</a>
     </div>
+</div>
+
+
+<div class="card">
+  <h3 style="margin-top:0;">Coach cue</h3>
+  <p class="muted" id="coachPersona">{{ avatar.name }} · guidance: {{ avatar.guidance_level|title }}</p>
+  <p id="coachCueText"></p>
+  <label style="display:flex;align-items:center;gap:8px;">
+    <input type="checkbox" id="speakToggle" style="width:auto;" /> Read cues aloud
+  </label>
 </div>
 
 <div class="card" id="finishModal" style="display:none;">
@@ -60,6 +72,15 @@ function render() {
   document.getElementById('blockTitle').textContent = block.name;
   document.getElementById('blockIndex').textContent = String(Math.min(blockIdx + 1, blocks.length));
   document.getElementById('timeLeft').textContent = fmt(Math.max(0, secondsLeft));
+  document.getElementById('blockDescription').textContent = block.description || '';
+  document.getElementById('blockTarget').textContent = block.target || '';
+  const cue = block.coach_cue || '';
+  document.getElementById('coachCueText').textContent = cue;
+  const speak = document.getElementById('speakToggle');
+  if (speak && speak.checked && cue && 'speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(new SpeechSynthesisUtterance(cue));
+  }
 
   // Show or hide the media link if this block has an attached media_id
   const wrap = document.getElementById('mediaWrap');

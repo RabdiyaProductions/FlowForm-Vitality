@@ -8,11 +8,8 @@
 
 <div class="card">
   <h2 id="blockTitle">Block</h2>
-  <p class="muted" id="blockMeta"></p>
   <p class="muted" id="blockDescription"></p>
   <p><strong id="blockTarget"></strong></p>
-  <label>Substitute note (optional)</label>
-  <textarea id="substituteNote" rows="2" placeholder="Swap exercise / modification..."></textarea>
   <p>Block <span id="blockIndex">1</span>/{{ session.blocks|length }}</p>
   <p>Time left: <strong><span id="timeLeft">00:00</span></strong></p>
   <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;">
@@ -23,6 +20,16 @@
     <button class="btn" id="finishBtn" type="button">Finish</button>
   </div>
   <div id="mediaWrap" style="display:none; margin-top:12px;"><a class="btn" id="mediaBtn" target="_blank" href="#">Open media</a></div>
+</div>
+
+
+<div class="card">
+  <h3 style="margin-top:0;">Coach cue</h3>
+  <p class="muted" id="coachPersona">{{ avatar.name }} · guidance: {{ avatar.guidance_level|title }}</p>
+  <p id="coachCueText"></p>
+  <label style="display:flex;align-items:center;gap:8px;">
+    <input type="checkbox" id="speakToggle" style="width:auto;" /> Read cues aloud
+  </label>
 </div>
 
 <div class="card"><h3>Coach cue</h3><p id="coachCueText"></p><label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="speakToggle" style="width:auto;" /> Read cues aloud</label></div>
@@ -53,10 +60,53 @@ function blockMeta(b){
   if((b.type||'timed')==='interval') return `Type: interval · ${b.rounds||1} rounds · work ${b.work_seconds||0}s / rest ${b.rest_seconds||0}s`;
   return `Type: timed · ${b.minutes||0} min`;
 }
-function resetTimerForBlock(b){
-  if((b.type||'timed')==='interval'){
-    intervalState={phase:'work',roundsDone:0};
-    secondsLeft = Math.max(1, Number(b.work_seconds||20));
+
+
+function poseForBlock(block) {
+  const txt = `${sessionData.discipline || ''} ${block.name || ''} ${block.description || ''} ${block.target || ''}`.toLowerCase();
+  if (txt.includes('warm')) return 'warmup';
+  if (txt.includes('squat')) return 'squat';
+  if (txt.includes('hinge') || txt.includes('deadlift')) return 'hinge';
+  if (txt.includes('push') || txt.includes('press') || txt.includes('pushup')) return 'pushup';
+  if (txt.includes('plank') || txt.includes('core')) return 'plank';
+  if (txt.includes('stretch') || txt.includes('mobility') || txt.includes('flex')) return 'stretch';
+  if (txt.includes('breath') || txt.includes('mindful') || txt.includes('recovery')) return 'breathe';
+  return 'idle';
+}
+
+function sync3DForCurrentBlock(block) {
+  const wrap = document.getElementById('coach3dWrap');
+  const toggle = document.getElementById('show3dToggle');
+  const frame = document.getElementById('coach3dFrame');
+  if (!wrap || !toggle || !frame) return;
+  wrap.style.display = toggle.checked ? 'block' : 'none';
+  if (!toggle.checked) return;
+  const pose = poseForBlock(block || {});
+  frame.src = `/avatar-3d?embed=1&pose=${encodeURIComponent(pose)}`;
+}
+
+function render() {
+  const block = blocks[blockIdx] || {name: 'Done', seconds: 0};
+  document.getElementById('blockTitle').textContent = block.name;
+  document.getElementById('blockIndex').textContent = String(Math.min(blockIdx + 1, blocks.length));
+  document.getElementById('timeLeft').textContent = fmt(Math.max(0, secondsLeft));
+  document.getElementById('blockDescription').textContent = block.description || '';
+  document.getElementById('blockTarget').textContent = block.target || '';
+  const cue = block.coach_cue || '';
+  document.getElementById('coachCueText').textContent = cue;
+  const speak = document.getElementById('speakToggle');
+  if (speak && speak.checked && cue && 'speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(new SpeechSynthesisUtterance(cue));
+  }
+
+  // Show or hide the media link if this block has an attached media_id
+  const wrap = document.getElementById('mediaWrap');
+  const btn = document.getElementById('mediaBtn');
+  sync3DForCurrentBlock(block);
+  if (block.media_id) {
+    wrap.style.display = 'block';
+    btn.href = `/media/${block.media_id}`;
   } else {
     secondsLeft = Number(b.seconds||0);
   }

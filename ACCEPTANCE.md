@@ -235,6 +235,20 @@
 - session completion appears in dashboard analytics.
 
 - [x] Starter pack seeds 35 curated templates (idempotent) across core disciplines, with 30–75 minute sessions and clear block cues.
+- [x] Regenerate Next Week only rewrites upcoming uncompleted days and never removes completion history.
+
+## Interval Session Journey
+**Steps**
+1. Open a session that contains an interval block.
+2. Confirm work/rest rounds countdown runs in the player.
+3. Add a substitution note on at least one block.
+4. Finish the session.
+5. Open session summary.
+
+**Accept if**
+- interval work/rest rounds progress correctly,
+- substitution notes are saved in completion details,
+- summary shows substitutions without errors.
 ## Journey 15 — Template edit + per-block media playback
 **Steps**
 1. Open `/templates` and click **Edit** for a template.

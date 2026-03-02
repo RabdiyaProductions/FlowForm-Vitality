@@ -19,11 +19,7 @@
     <button class="btn" id="nextBtn" type="button">Next</button>
     <button class="btn" id="finishBtn" type="button">Finish</button>
   </div>
-
-    <!-- Optional media attachment for current block -->
-    <div id="mediaWrap" style="display:none; margin-top:12px;">
-      <a class="btn" id="mediaBtn" target="_blank" href="#">Open media</a>
-    </div>
+  <div id="mediaWrap" style="display:none; margin-top:12px;"><a class="btn" id="mediaBtn" target="_blank" href="#">Open media</a></div>
 </div>
 
 
@@ -41,12 +37,13 @@
   <label>RPE (1-10)</label>
   <input type="number" id="rpe" min="1" max="10" value="7" />
 
-  <label>Minutes done</label>
-  <input type="number" id="minutesDone" min="0" max="300" value="{{ session.blocks|sum(attribute='minutes') }}" />
+<div class="card"><label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="show3dToggle" style="width:auto;" /> Show 3D coach</label><p class="muted">3D is optional and falls back gracefully if WebGL is unavailable.</p></div>
 
-  <label>Notes</label>
-  <textarea id="notes" rows="3" placeholder="How did it go?"></textarea>
-
+<div class="card" id="finishModal" style="display:none;">
+  <h3>Complete Session</h3>
+  <label>RPE (1-10)</label><input type="number" id="rpe" min="1" max="10" value="7" />
+  <label>Minutes done</label><input type="number" id="minutesDone" min="0" max="300" value="{{ session.blocks|sum(attribute='minutes') }}" />
+  <label>Notes</label><textarea id="notes" rows="3" placeholder="How did it go?"></textarea>
   <div style="display:flex; gap:10px; margin-top:10px;">
     <button class="btn" id="saveCompletionBtn" type="button">Save completion</button>
     <button class="btn" id="cancelCompletionBtn" type="button">Cancel</button>
@@ -56,15 +53,15 @@
 <script>
 const sessionData = {{ session|tojson }};
 const blocks = sessionData.blocks || [];
-let blockIdx = 0;
-let secondsLeft = blocks[0] ? blocks[0].seconds : 0;
-let totalSeconds = 0;
-let timer = null;
+let blockIdx = 0, secondsLeft = blocks[0] ? blocks[0].seconds : 0, timer = null;
+let intervalState = { phase: 'work', roundsDone: 0 };
+const substitutions = {};
 
-function fmt(total) {
-  const m = Math.floor(total / 60).toString().padStart(2, '0');
-  const s = (total % 60).toString().padStart(2, '0');
-  return `${m}:${s}`;
+function fmt(s){ const m=String(Math.floor(s/60)).padStart(2,'0'); const ss=String(Math.max(0,s%60)).padStart(2,'0'); return `${m}:${ss}`; }
+function blockMeta(b){
+  if((b.type||'timed')==='reps') return `Type: reps${b.reps?` · ${b.reps}`:''}${b.tempo?` · tempo ${b.tempo}`:''}`;
+  if((b.type||'timed')==='interval') return `Type: interval · ${b.rounds||1} rounds · work ${b.work_seconds||0}s / rest ${b.rest_seconds||0}s`;
+  return `Type: timed · ${b.minutes||0} min`;
 }
 
 
@@ -114,78 +111,53 @@ function render() {
     wrap.style.display = 'block';
     btn.href = `/media/${block.media_id}`;
   } else {
-    wrap.style.display = 'none';
-    btn.href = '#';
+    secondsLeft = Number(b.seconds||0);
   }
 }
-
-function startTimer() {
-  if (timer) return;
-  timer = setInterval(() => {
-    totalSeconds += 1;
-    if (secondsLeft > 0) secondsLeft -= 1;
-    if (secondsLeft <= 0) {
-      nextBlock();
-      return;
-    }
-    render();
-  }, 1000);
+function render(){
+  const b = blocks[blockIdx] || {name:'Done',type:'timed',seconds:0};
+  document.getElementById('blockTitle').textContent=b.name||'Block';
+  document.getElementById('blockMeta').textContent=blockMeta(b);
+  document.getElementById('blockDescription').textContent=b.description||'';
+  document.getElementById('blockTarget').textContent=b.target||'';
+  document.getElementById('blockIndex').textContent=String(Math.min(blockIdx+1, blocks.length));
+  document.getElementById('timeLeft').textContent=fmt(secondsLeft);
+  document.getElementById('substituteNote').value = substitutions[blockIdx] || '';
+  const wrap=document.getElementById('mediaWrap'); const btn=document.getElementById('mediaBtn');
+  if (b.media_id){ wrap.style.display='block'; btn.href=`/media/${b.media_id}`; } else { wrap.style.display='none'; btn.href='#'; }
 }
-
-function pauseTimer() {
-  if (timer) {
-    clearInterval(timer);
-    timer = null;
+function tickInterval(b){
+  if(secondsLeft>0){ secondsLeft -= 1; return; }
+  if(intervalState.phase==='work'){
+    if((b.rest_seconds||0) > 0){ intervalState.phase='rest'; secondsLeft = Number(b.rest_seconds||0); return; }
+    intervalState.roundsDone += 1;
+    if(intervalState.roundsDone >= Number(b.rounds||1)){ nextBlock(); return; }
+    secondsLeft = Number(b.work_seconds||20); return;
   }
+  intervalState.roundsDone += 1;
+  if(intervalState.roundsDone >= Number(b.rounds||1)){ nextBlock(); return; }
+  intervalState.phase='work'; secondsLeft = Number(b.work_seconds||20);
 }
-
-function nextBlock() {
-  blockIdx = Math.min(blockIdx + 1, blocks.length - 1);
-  secondsLeft = blocks[blockIdx] ? blocks[blockIdx].seconds : 0;
-  render();
-}
-
-function backBlock() {
-  blockIdx = Math.max(0, blockIdx - 1);
-  secondsLeft = blocks[blockIdx] ? blocks[blockIdx].seconds : 0;
-  render();
-}
-
-async function finishSession() {
-  pauseTimer();
-  const payload = {
-    plan_day_id: sessionData.plan_day_id,
-    rpe: Number(document.getElementById('rpe').value || 7),
-    notes: document.getElementById('notes').value,
-    minutes_done: Number(document.getElementById('minutesDone').value || Math.round(totalSeconds / 60)),
-  };
-
-  const res = await fetch('/api/session/finish', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    alert('Could not save completion');
-    return;
-  }
-  const out = await res.json();
-  window.location.href = out.redirect;
+function startTimer(){ if(timer) return; timer=setInterval(()=>{ const b=blocks[blockIdx]||{}; if((b.type||'timed')==='interval'){ tickInterval(b);} else { if(secondsLeft>0) secondsLeft-=1; else { nextBlock(); return; } } render(); },1000); }
+function pauseTimer(){ if(timer){ clearInterval(timer); timer=null; } }
+function nextBlock(){ substitutions[blockIdx]=document.getElementById('substituteNote').value||''; blockIdx=Math.min(blockIdx+1, blocks.length-1); resetTimerForBlock(blocks[blockIdx]||{}); render(); }
+function backBlock(){ substitutions[blockIdx]=document.getElementById('substituteNote').value||''; blockIdx=Math.max(0, blockIdx-1); resetTimerForBlock(blocks[blockIdx]||{}); render(); }
+async function finishSession(){
+  pauseTimer(); substitutions[blockIdx]=document.getElementById('substituteNote').value||'';
+  const detailBlocks = blocks.map((b,i)=>({ index:i+1, name:b.name||`Block ${i+1}`, substitute: substitutions[i]||'', type:b.type||'timed' }));
+  const payload={ plan_day_id: sessionData.plan_day_id, rpe:Number(document.getElementById('rpe').value||7), notes:document.getElementById('notes').value,
+    minutes_done:Number(document.getElementById('minutesDone').value||0), details:{ substitutions: detailBlocks } };
+  const res = await fetch('/api/session/finish', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+  const out = await res.json(); if(out.ok && out.redirect) window.location.href = out.redirect; else alert(out.error||'Failed');
 }
 
 document.getElementById('startBtn').addEventListener('click', startTimer);
 document.getElementById('pauseBtn').addEventListener('click', pauseTimer);
 document.getElementById('nextBtn').addEventListener('click', nextBlock);
 document.getElementById('backBtn').addEventListener('click', backBlock);
-document.getElementById('finishBtn').addEventListener('click', () => {
-  document.getElementById('finishModal').style.display = 'block';
-  document.getElementById('minutesDone').value = Math.max(1, Math.round(totalSeconds / 60));
-});
-document.getElementById('cancelCompletionBtn').addEventListener('click', () => {
-  document.getElementById('finishModal').style.display = 'none';
-});
+document.getElementById('finishBtn').addEventListener('click', ()=>{ pauseTimer(); document.getElementById('finishModal').style.display='block'; });
 document.getElementById('saveCompletionBtn').addEventListener('click', finishSession);
-
-render();
+document.getElementById('cancelCompletionBtn').addEventListener('click', ()=>{ document.getElementById('finishModal').style.display='none'; });
+resetTimerForBlock(blocks[0]||{}); render();
 </script>
 {% endblock %}

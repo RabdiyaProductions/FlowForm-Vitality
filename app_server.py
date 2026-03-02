@@ -281,12 +281,14 @@ def apply_schema_migrations(connection: sqlite3.Connection) -> None:
             rpe INTEGER,
             notes TEXT,
             minutes_done INTEGER,
+            details_json TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
             FOREIGN KEY(plan_day_id) REFERENCES plan_day(id)
         )
         """
     )
+    ensure_column(connection, "session_completion", "details_json", "details_json TEXT")
 
     connection.execute(
         """
@@ -687,6 +689,12 @@ def build_plan_structure(
     weeks: int,
 ) -> list[dict]:
     items: list[dict] = []
+    usage_count: dict[int, int] = {}
+    recent_template_ids: list[int] = []
+
+    for week in range(1, weeks + 1):
+        target = week_target_minutes(minutes_per_session, week)
+        phase = {1: "Base", 2: "Build", 3: "Peak", 4: "Deload"}.get(week, f"Week {week}")
     used_template_ids: set[int] = set()
 
     for week in range(1, weeks + 1):
@@ -697,12 +705,16 @@ def build_plan_structure(
             ranked = sorted(
                 preferred if preferred else pool,
                 key=lambda item: (
+                    usage_count.get(item["id"], 0),
+                    item["id"] in recent_template_ids[-2:],
                     item["id"] in used_template_ids,
                     abs(item["duration"] - target),
                     item["id"],
                 ),
             )
             choice = ranked[(week + day_index - 2) % len(ranked)]
+            usage_count[choice["id"]] = usage_count.get(choice["id"], 0) + 1
+            recent_template_ids.append(choice["id"])
             used_template_ids.add(choice["id"])
             items.append(
                 {
@@ -848,10 +860,33 @@ def blocks_from_json(raw: str) -> list[dict]:
 
         description = str(block.get("description", "")).strip()
         target = str(block.get("target", "")).strip()
+        avatar_clip = str(block.get("avatar_clip", "")).strip().lower()
+        btype = str(block.get("type", "timed")).strip().lower()
+        if btype not in {"timed", "reps", "interval"}:
+            btype = "timed"
+        work_seconds = max(0, int(block.get("work_seconds", 0) or 0))
+        rest_seconds = max(0, int(block.get("rest_seconds", 0) or 0))
+        rounds = max(1, int(block.get("rounds", 1) or 1))
+        reps = str(block.get("reps", "")).strip()
+        tempo = str(block.get("tempo", "")).strip()
+        total_seconds = minutes_int * 60
+        if btype == "interval" and work_seconds > 0:
+            total_seconds = (work_seconds * rounds) + (rest_seconds * max(0, rounds - 1))
 
         normalized.append(
             {
                 "name": name,
+                "type": btype,
+                "minutes": minutes_int,
+                "seconds": total_seconds,
+                "work_seconds": work_seconds,
+                "rest_seconds": rest_seconds,
+                "rounds": rounds,
+                "reps": reps,
+                "tempo": tempo,
+                "description": description,
+                "target": target,
+                "avatar_clip": avatar_clip,
                 "minutes": minutes_int,
                 "seconds": minutes_int * 60,
                 "description": description,
@@ -2809,6 +2844,7 @@ def create_app(port: int | None = None) -> Flask:
         plan = current_plan_record(connection, user_id)
         rows = connection.execute(
             """
+            SELECT id, name, discipline, duration_minutes, level, json_blocks, json_blocks
             SELECT id, name, discipline, duration_minutes, level, json_blocks
             FROM session_template
             WHERE duration_minutes BETWEEN ? AND ?
@@ -3660,6 +3696,13 @@ def create_app(port: int | None = None) -> Flask:
         guidance = str(avatar.get("guidance_level", "medium"))
         for b in blocks:
             b["coach_cue"] = coach_cue_text(avatar, discipline, b, guidance)
+            b["avatar_pose"] = avatar_clip_for_block(discipline, b)
+
+        if not blocks:
+            duration = int(row["duration_minutes"] or 30)
+            fallback = {"name": row["template_name"] or "Session", "minutes": duration, "seconds": duration * 60, "description": "", "target": "", "avatar_clip": ""}
+            fallback["coach_cue"] = coach_cue_text(avatar, discipline, fallback, guidance)
+            fallback["avatar_pose"] = avatar_clip_for_block(discipline, fallback)
 
         if not blocks:
             duration = int(row["duration_minutes"] or 30)
@@ -3690,6 +3733,7 @@ def create_app(port: int | None = None) -> Flask:
             rpe = clamp_int(int(payload.get("rpe", 5)), 1, 10)
             notes = str(payload.get("notes", "")).strip()
             minutes_done = clamp_int(int(payload.get("minutes_done", 0)), 0, 300)
+            details_json = json.dumps(payload.get("details", {}))
         except (TypeError, ValueError):
             return jsonify({"ok": False, "error": "invalid_payload"}), 400
 
@@ -3702,10 +3746,10 @@ def create_app(port: int | None = None) -> Flask:
 
             cursor = connection.execute(
                 """
-                INSERT INTO session_completion (plan_day_id, completed_at, rpe, notes, minutes_done, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO session_completion (plan_day_id, completed_at, rpe, notes, minutes_done, details_json, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (plan_day_id, now, rpe, notes, minutes_done, now, now),
+                (plan_day_id, now, rpe, notes, minutes_done, details_json, now, now),
             )
             completion_id = int(cursor.lastrowid)
             write_audit(connection, "session_completed", {"completion_id": completion_id, "plan_day_id": plan_day_id})
@@ -3726,7 +3770,7 @@ def create_app(port: int | None = None) -> Flask:
         connection.row_factory = sqlite3.Row
         row = connection.execute(
             """
-            SELECT sc.id, sc.completed_at, sc.rpe, sc.notes, sc.minutes_done,
+            SELECT sc.id, sc.completed_at, sc.rpe, sc.notes, sc.minutes_done, sc.details_json,
                    pd.title, pd.week, pd.day_index, st.name AS template_name
             FROM session_completion sc
             JOIN plan_day pd ON pd.id = sc.plan_day_id
@@ -3740,6 +3784,12 @@ def create_app(port: int | None = None) -> Flask:
         if row is None:
             return jsonify({"error": "completion_not_found"}), 404
 
+        details = {}
+        try:
+            details = json.loads(str(row["details_json"] or "{}"))
+        except Exception:
+            details = {}
+        return render_template("session_summary.html", completion=row, details=details)
         return render_template("session_summary.html", completion=row)
 
     @app.post("/api/timeline/update")
@@ -3903,7 +3953,7 @@ def create_app(port: int | None = None) -> Flask:
         connection.row_factory = sqlite3.Row
         row = connection.execute(
             """
-            SELECT sc.id, sc.completed_at, sc.rpe, sc.notes, sc.minutes_done,
+            SELECT sc.id, sc.completed_at, sc.rpe, sc.notes, sc.minutes_done, sc.details_json,
                    pd.title, pd.week, pd.day_index, st.name AS template_name, st.json_blocks
             FROM session_completion sc
             JOIN plan_day pd ON pd.id = sc.plan_day_id

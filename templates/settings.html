@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <h1>Settings</h1>
+  <p class="muted">Operational settings for local FlowForm runtime.</p>
+  <ul>
+    <li>App version: {{ version }}</li>
+    <li>Database path: {{ db_path }}</li>
+  </ul>
+</div>
+{% endblock %}

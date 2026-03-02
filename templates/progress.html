@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <h1>Progress Log</h1>
+  <p class="muted">Completed sessions with duration and notes.</p>
+</div>
+
+<div class="card">
+  <table>
+    <thead><tr><th>Session</th><th>Started</th><th>Finished</th><th>Duration</th><th>Notes</th></tr></thead>
+    <tbody>
+      {% for r in runs %}
+      <tr>
+        <td>{{ r['title'] }}</td>
+        <td>{{ r['started_at'] }}</td>
+        <td>{{ r['finished_at'] }}</td>
+        <td>{{ (r['duration_seconds'] // 60) }} min</td>
+        <td>{{ r['notes'] }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

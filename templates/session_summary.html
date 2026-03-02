@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <h1>Session Summary</h1>
+  <p><strong>{{ completion['title'] or completion['template_name'] }}</strong></p>
+  <p>Week {{ completion['week'] }}, Day {{ completion['day_index'] }}</p>
+  <p>Completed at: {{ completion['completed_at'] }}</p>
+  <p>RPE: {{ completion['rpe'] }}</p>
+  <p>Minutes done: {{ completion['minutes_done'] }}</p>
+  <p>Notes: {{ completion['notes'] or 'None' }}</p>
+  <a class="btn" href="/plan/current">Back to Current Plan</a>
+</div>
+{% endblock %}

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h1>Assistant Coach</h1>
+  <p class="muted">Founder-mode coach for plan tweaks, substitutions, recovery guidance, and motivation. <strong>Not medical advice.</strong></p>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;">
+    <button class="btn" type="button" onclick="preset('Tweak my plan for this week based on my readiness and recent sessions.')">Plan tweak</button>
+    <button class="btn" type="button" onclick="preset('Suggest a substitute for today\'s session that matches my current readiness.')">Substitution</button>
+    <button class="btn" type="button" onclick="preset('Give me a short recovery protocol for today based on my readiness score.')">Recovery</button>
+    <button class="btn" type="button" onclick="preset('Give me motivation and a simple next action for today.')">Motivation</button>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Conversation</h2>
+  {% if messages and messages|length > 0 %}
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      {% for m in messages %}
+        <div style="border:1px solid var(--border);border-radius:10px;padding:10px;background:#0d1628;">
+          <div class="muted" style="font-size:12px;display:flex;justify-content:space-between;gap:8px;">
+            <span>{{ 'You' if m.role == 'user' else 'Coach' }}</span>
+            <span>{{ m.created_at }}</span>
+          </div>
+          <div style="white-space:pre-wrap;margin-top:6px;">{{ m.content }}</div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="muted">No messages yet. Use a preset or ask something below.</p>
+  {% endif %}
+
+  <hr style="border:0;border-top:1px solid var(--border);margin:14px 0;" />
+
+  <form method="post" action="/assistant/send">
+    <label>Message</label>
+    <textarea id="msg" name="message" rows="4" placeholder="Ask: What should I do today? How should I adjust my plan? What recovery should I do?"></textarea>
+    <button class="btn" type="submit">Send</button>
+  </form>
+</div>
+
+<script>
+function preset(t){
+  const el=document.getElementById('msg');
+  el.value=t;
+  el.focus();
+}
+</script>
+{% endblock %}

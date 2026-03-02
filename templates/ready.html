@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <h1>System Ready</h1>
+  <p class="muted">Live status from /api/health and local data counts.</p>
+  <p>Status: <span id="status">...</span></p>
+  <p>Port: <span id="port">...</span></p>
+  <p>DB: <span id="db">...</span></p>
+</div>
+
+<div class="card">
+  <h2>Data snapshot</h2>
+  <ul>
+    <li>Templates: <strong>{{ counts.templates }}</strong></li>
+    <li>Plans: <strong>{{ counts.plans }}</strong></li>
+    <li>Completions: <strong>{{ counts.completions }}</strong></li>
+    <li>Recovery entries: <strong>{{ counts.recovery }}</strong></li>
+    <li>Media items: <strong>{{ counts.media }}</strong></li>
+  </ul>
+</div>
+
+<div class="card">
+  <h2>Founder quick links</h2>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;">
+    <a class="btn" href="/plan/wizard">Plan Wizard</a>
+    <a class="btn" href="/plan/current">Current Plan</a>
+    <a class="btn" href="/templates">Templates</a>
+    <a class="btn" href="/recovery">Recovery</a>
+    <a class="btn" href="/analytics">Analytics</a>
+    <a class="btn" href="/media">Media</a>
+    <a class="btn" href="/exports">Exports</a>
+  </div>
+</div>
+
+<script>
+(async () => {
+  const res = await fetch('/api/health');
+  if (!res.ok) return;
+  const data = await res.json();
+  document.getElementById('status').textContent = data.status;
+  document.getElementById('port').textContent = data.port;
+  document.getElementById('db').textContent = data.db_ok ? 'ok' : 'degraded';
+})();
+</script>
+{% endblock %}

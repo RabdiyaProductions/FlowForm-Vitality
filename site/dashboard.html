@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>FlowForm — Dashboard (Preview)</title>
+  <meta name="robots" content="noindex" />
+  <link rel="icon" href="assets/flowform-logo.png" />
+  <style>
+    :root{--teal:#1aa6a6;--teal2:#0f7f7f;--ink:#0b1220;--muted:#5b667a;--bg:#ffffff;--card:#f6f8fb;--border:#e6ebf2;}
+    *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--ink);}
+    a{color:var(--teal2);text-decoration:none} a:hover{text-decoration:underline}
+    .wrap{max-width:1100px;margin:0 auto;padding:24px}
+    .top{display:flex;gap:18px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+    .brand{display:flex;gap:12px;align-items:center}
+    .brand img{height:44px}
+    .nav{display:flex;gap:14px;flex-wrap:wrap;font-size:14px}
+    .grid{margin-top:14px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+    .card{border:1px solid var(--border);background:var(--card);border-radius:16px;padding:16px}
+    .k{font-size:12px;color:var(--muted)} .v{font-size:20px;font-weight:1000;margin-top:4px}
+    .btn{display:inline-flex;align-items:center;justify-content:center;padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:#fff;font-weight:900}
+    .btn.primary{background:var(--teal);border-color:var(--teal);color:#fff}
+    .btn.primary:hover{background:var(--teal2)}
+    @media (max-width:900px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div class="brand">
+        <img src="assets/flowform-logo.png" alt="FlowForm" />
+        <div>
+          <div style="font-weight:900;">FlowForm</div>
+          <div style="font-size:12px;color:var(--muted);">Dashboard preview</div>
+        </div>
+      </div>
+      <nav class="nav">
+        <a href="index.html">Home</a>
+        <a href="classes.html">Classes</a>
+        <a href="plans.html">Plans</a>
+        <a href="contact.html">Contact</a>
+      </nav>
+    </header>
+
+    <div class="card" style="margin-top:14px;">
+      <div style="font-weight:1000;font-size:22px;">Dashboard (Preview)</div>
+      <p style="margin:6px 0 0;color:var(--muted);">
+        This is a placeholder for the future logged-in dashboard: streaks, sessions, programmes, and progress.
+      </p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">
+        <a class="btn primary" href="plans.html">Choose a plan</a>
+        <a class="btn" href="subscriptions.html">Subscribe</a>
+      </div>
+    </div>
+
+    <section class="grid">
+      <div class="card">
+        <div class="k">Weekly sessions target</div>
+        <div class="v">3–5</div>
+        <div style="color:var(--muted);font-size:13px;margin-top:6px;">Consistency beats intensity.</div>
+      </div>
+      <div class="card">
+        <div class="k">Today’s focus</div>
+        <div class="v">Flow + Breath</div>
+        <div style="color:var(--muted);font-size:13px;margin-top:6px;">Short session, big return.</div>
+      </div>
+      <div class="card">
+        <div class="k">Next build</div>
+        <div class="v">Progress tracking</div>
+        <div style="color:var(--muted);font-size:13px;margin-top:6px;">Streaks, levels, and programmes.</div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

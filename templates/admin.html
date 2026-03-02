@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <h1>Admin Dashboard</h1>
+  <p class="muted">Internal use only: manage users and account state.</p>
+</div>
+<div class="card">
+  <table>
+    <thead>
+      <tr><th>ID</th><th>Email</th><th>Name</th><th>Role</th><th>Subscription</th><th>Status</th><th>Action</th></tr>
+    </thead>
+    <tbody>
+    {% for u in users %}
+      <tr>
+        <td>{{ u.id }}</td>
+        <td>{{ u.email }}</td>
+        <td>{{ u.display_name }}</td>
+        <td>{{ u.role }}</td>
+        <td>{{ u.subscription_plan }}</td>
+        <td>{{ 'enabled' if u.enabled else 'disabled' }} / {{ u.subscription_status }}</td>
+        <td>
+          <form method="post" action="/admin/users/{{ u.id }}/toggle">
+            <button class="btn" type="submit">{{ 'Disable' if u.enabled else 'Enable' }}</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

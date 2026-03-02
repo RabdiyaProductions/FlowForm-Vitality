@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <h1>Sessions</h1>
+  <a class="btn" href="/sessions/new">Create Session</a>
+</div>
+
+<div class="card">
+  <table>
+    <thead><tr><th>Title</th><th>Category</th><th>Intensity</th><th>Duration</th><th>Load</th><th>Created</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for s in sessions %}
+      <tr>
+        <td><a href="/sessions/{{ s['id'] }}">{{ s['title'] }}</a></td>
+        <td>{{ s['category'] }}</td>
+        <td>{{ s['intensity'] }}</td>
+        <td>{{ s['duration_minutes'] }} min</td>
+        <td>{{ s['training_load'] }}</td>
+        <td>{{ s['created_at'] }}</td>
+        <td>{{ 'Completed' if s['completed_at'] else 'Pending' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7">No sessions created.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

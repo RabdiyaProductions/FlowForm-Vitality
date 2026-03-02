@@ -1,0 +1,7 @@
+2026-03-02 18:01:41,047 | INFO | app_server | FlowForm boot config: port=5410 db=C:\KIRAN\00.KR-BUILD\FlowForm-Vitality-main\FlowForm-Vitality-main\FlowForm_Vitality_v6_PROMPT345_update\data\flowform.db
+2026-03-02 18:01:41,266 | INFO | werkzeug | [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5410
+2026-03-02 18:01:41,267 | INFO | werkzeug | [33mPress CTRL+C to quit[0m
+2026-03-02 18:01:41,686 | INFO | werkzeug | 127.0.0.1 - - [02/Mar/2026 18:01:41] "GET /health HTTP/1.1" 200 -
+2026-03-02 18:01:42,197 | INFO | werkzeug | 127.0.0.1 - - [02/Mar/2026 18:01:42] "GET /ready HTTP/1.1" 200 -
+2026-03-02 18:01:42,252 | INFO | werkzeug | 127.0.0.1 - - [02/Mar/2026 18:01:42] "GET /api/health HTTP/1.1" 200 -

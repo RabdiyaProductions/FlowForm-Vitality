@@ -1,0 +1,145 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <h1>Session Start</h1>
+  <p><strong>{{ session.title }}</strong> · Week {{ session.week }} Day {{ session.day_index }}</p>
+  <p class="muted">{{ session.template_name }}</p>
+</div>
+
+<div class="card">
+  <h2 id="blockTitle">Block</h2>
+  <p>Block <span id="blockIndex">1</span>/{{ session.blocks|length }}</p>
+  <p>Time left: <strong><span id="timeLeft">00:00</span></strong></p>
+  <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;">
+    <button class="btn" id="startBtn" type="button">Start</button>
+    <button class="btn" id="pauseBtn" type="button">Pause</button>
+    <button class="btn" id="backBtn" type="button">Back</button>
+    <button class="btn" id="nextBtn" type="button">Next</button>
+    <button class="btn" id="finishBtn" type="button">Finish</button>
+  </div>
+
+    <!-- Optional media attachment for current block -->
+    <div id="mediaWrap" style="display:none; margin-top:12px;">
+      <a class="btn" id="mediaBtn" target="_blank" href="#">Open media</a>
+    </div>
+</div>
+
+<div class="card" id="finishModal" style="display:none;">
+  <h3>Complete Session</h3>
+  <label>RPE (1-10)</label>
+  <input type="number" id="rpe" min="1" max="10" value="7" />
+
+  <label>Minutes done</label>
+  <input type="number" id="minutesDone" min="0" max="300" value="{{ session.blocks|sum(attribute='minutes') }}" />
+
+  <label>Notes</label>
+  <textarea id="notes" rows="3" placeholder="How did it go?"></textarea>
+
+  <div style="display:flex; gap:10px; margin-top:10px;">
+    <button class="btn" id="saveCompletionBtn" type="button">Save completion</button>
+    <button class="btn" id="cancelCompletionBtn" type="button">Cancel</button>
+  </div>
+</div>
+
+<script>
+const sessionData = {{ session|tojson }};
+const blocks = sessionData.blocks || [];
+let blockIdx = 0;
+let secondsLeft = blocks[0] ? blocks[0].seconds : 0;
+let totalSeconds = 0;
+let timer = null;
+
+function fmt(total) {
+  const m = Math.floor(total / 60).toString().padStart(2, '0');
+  const s = (total % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
+}
+
+function render() {
+  const block = blocks[blockIdx] || {name: 'Done', seconds: 0};
+  document.getElementById('blockTitle').textContent = block.name;
+  document.getElementById('blockIndex').textContent = String(Math.min(blockIdx + 1, blocks.length));
+  document.getElementById('timeLeft').textContent = fmt(Math.max(0, secondsLeft));
+
+  // Show or hide the media link if this block has an attached media_id
+  const wrap = document.getElementById('mediaWrap');
+  const btn = document.getElementById('mediaBtn');
+  if (block.media_id) {
+    wrap.style.display = 'block';
+    btn.href = `/media/${block.media_id}`;
+  } else {
+    wrap.style.display = 'none';
+    btn.href = '#';
+  }
+}
+
+function startTimer() {
+  if (timer) return;
+  timer = setInterval(() => {
+    totalSeconds += 1;
+    if (secondsLeft > 0) secondsLeft -= 1;
+    if (secondsLeft <= 0) {
+      nextBlock();
+      return;
+    }
+    render();
+  }, 1000);
+}
+
+function pauseTimer() {
+  if (timer) {
+    clearInterval(timer);
+    timer = null;
+  }
+}
+
+function nextBlock() {
+  blockIdx = Math.min(blockIdx + 1, blocks.length - 1);
+  secondsLeft = blocks[blockIdx] ? blocks[blockIdx].seconds : 0;
+  render();
+}
+
+function backBlock() {
+  blockIdx = Math.max(0, blockIdx - 1);
+  secondsLeft = blocks[blockIdx] ? blocks[blockIdx].seconds : 0;
+  render();
+}
+
+async function finishSession() {
+  pauseTimer();
+  const payload = {
+    plan_day_id: sessionData.plan_day_id,
+    rpe: Number(document.getElementById('rpe').value || 7),
+    notes: document.getElementById('notes').value,
+    minutes_done: Number(document.getElementById('minutesDone').value || Math.round(totalSeconds / 60)),
+  };
+
+  const res = await fetch('/api/session/finish', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    alert('Could not save completion');
+    return;
+  }
+  const out = await res.json();
+  window.location.href = out.redirect;
+}
+
+document.getElementById('startBtn').addEventListener('click', startTimer);
+document.getElementById('pauseBtn').addEventListener('click', pauseTimer);
+document.getElementById('nextBtn').addEventListener('click', nextBlock);
+document.getElementById('backBtn').addEventListener('click', backBlock);
+document.getElementById('finishBtn').addEventListener('click', () => {
+  document.getElementById('finishModal').style.display = 'block';
+  document.getElementById('minutesDone').value = Math.max(1, Math.round(totalSeconds / 60));
+});
+document.getElementById('cancelCompletionBtn').addEventListener('click', () => {
+  document.getElementById('finishModal').style.display = 'none';
+});
+document.getElementById('saveCompletionBtn').addEventListener('click', finishSession);
+
+render();
+</script>
+{% endblock %}

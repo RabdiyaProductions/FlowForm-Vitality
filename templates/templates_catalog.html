@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <h1>Session Templates</h1>
+  <p class="muted">Catalog of available templates used by plan generation and session suggestions.</p>
+</div>
+<div class="card">
+  <table>
+    <thead><tr><th>Name</th><th>Discipline</th><th>Minutes</th><th>Level</th></tr></thead>
+    <tbody>
+      {% for t in templates %}
+      <tr>
+        <td>{{ t.name }}</td>
+        <td>{{ t.discipline }}</td>
+        <td>{{ t.duration_minutes }}</td>
+        <td>{{ t.level }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4">No templates found.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

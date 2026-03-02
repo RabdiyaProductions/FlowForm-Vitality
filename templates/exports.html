@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <h1>Exports</h1>
+  <p class="muted">Portable downloads for plan + history.</p>
+  <p><strong>Safety disclaimer:</strong> Exported guidance is informational and not medical advice.</p>
+</div>
+
+<div class="card">
+  <h2>Downloads</h2>
+  <div style="display:flex; gap:10px; flex-wrap:wrap;">
+    <a class="btn" href="/api/export/backup">Download full backup</a>
+    <a class="btn" href="/api/export/plan">Download Plan HTML</a>
+    <a class="btn" href="/api/export/json">Download Full Backup JSON</a>
+    <a class="btn" href="/api/export/zip">Download ZIP Bundle</a>
+  </div>
+  <ul>
+    <li><strong>Full backup:</strong> SQLite DB + JSON snapshot + settings + media files.</li>
+    <li><strong>Backup JSON:</strong> includes plan, templates, completions, recovery.</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h2>PDF Exports</h2>
+  <label>Plan ID</label>
+  <input type="number" id="planId" min="1" placeholder="e.g. 1" />
+  <button class="btn" id="planPdfBtn" type="button">Download plan PDF</button>
+
+  <label style="margin-top:8px;">Completion ID</label>
+  <input type="number" id="completionId" min="1" placeholder="e.g. 1" />
+  <button class="btn" id="sessionPdfBtn" type="button">Download session summary PDF</button>
+</div>
+
+<script>
+document.getElementById('planPdfBtn').addEventListener('click', () => {
+  const id = Number(document.getElementById('planId').value || 0);
+  if (id > 0) {
+    window.location.href = `/api/export/plan_pdf/${id}`;
+  }
+});
+
+document.getElementById('sessionPdfBtn').addEventListener('click', () => {
+  const id = Number(document.getElementById('completionId').value || 0);
+  if (id > 0) {
+    window.location.href = `/api/export/session_summary/${id}`;
+  }
+});
+</script>
+    <li><strong>Plan HTML:</strong> printable plan + completion status.</li>
+    <li><strong>Backup JSON:</strong> includes plan, templates, completions, recovery.</li>
+    <li><strong>ZIP Bundle:</strong> DB + JSON + plan HTML.</li>
+  </ul>
+</div>
+{% endblock %}

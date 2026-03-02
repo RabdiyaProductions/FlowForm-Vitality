@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <h1>Diagnostics</h1>
+  <p class="muted">Human-readable diagnostics summary. JSON is available at <code>/api/diagnostics</code>.</p>
+  <p>Status: <strong>{{ data.status }}</strong></p>
+  <p>Template count: <strong>{{ data.template_count }}</strong></p>
+</div>
+
+<div class="card">
+  <h2>Checks</h2>
+  <table>
+    <thead><tr><th>Check</th><th>Result</th></tr></thead>
+    <tbody>
+      {% for key, value in data.checks.items() %}
+      <tr>
+        <td>{{ key }}</td>
+        <td><strong>{{ value }}</strong></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <h2>Missing from spec</h2>
+  {% if data.missing_from_spec %}
+    <ul>
+      {% for item in data.missing_from_spec %}
+        <li>{{ item }}</li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>None 🎉</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <a class="btn" href="/ready">Back to Ready</a>
+</div>
+{% endblock %}

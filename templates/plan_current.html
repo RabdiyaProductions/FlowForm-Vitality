@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <h1>Current Plan</h1>
+
+  {% if not plan %}
+    <p class="muted">No active plan yet.</p>
+    <a class="btn" href="/plan/wizard">Create plan</a>
+  {% else %}
+    <p><strong>{{ plan['name'] }}</strong> · Start {{ plan['start_date'] }} · {{ plan['weeks'] }} weeks</p>
+    <p class="muted">Today target: Week {{ today_week }}, Day {{ today_day }}</p>
+
+    {% if readiness %}
+      <p><strong>Readiness:</strong> {{ readiness.score }}/100 ({{ readiness.label|upper }})</p>
+      <p class="muted">{{ readiness.explanation }}</p>
+      {% if suggestion_text %}
+        <p><strong>Suggestion:</strong> {{ suggestion_text }}</p>
+      {% endif %}
+      {% if suggestion %}
+        <p class="muted">Suggested template: <em>{{ suggestion.name }}</em> ({{ suggestion.discipline }}, {{ suggestion.duration_minutes }} min). Plan is unchanged.</p>
+      {% endif %}
+    {% else %}
+      <p class="muted">No recovery check-in yet. Add one for a readiness badge and daily suggestion.</p>
+    {% endif %}
+
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin:10px 0;">
+      {% if today_plan_day_id %}
+        <a class="btn" href="/session/start/{{ today_plan_day_id }}">Start today’s session</a>
+      {% else %}
+        <a class="btn" href="/plan/wizard">Start today’s session</a>
+      {% endif %}
+      <form method="post" action="/api/plan/regenerate-next-week" style="margin:0;">
+        <button class="btn" type="submit">Regenerate next week</button>
+      </form>
+    </div>
+
+    {% for week in weeks %}
+      <div class="card" style="margin-top:10px;">
+        <h3 style="margin-top:0;">Week {{ week.week }}</h3>
+        <table>
+          <thead>
+            <tr><th>Day</th><th>Session</th><th>Discipline</th><th>Minutes</th><th>Status</th><th></th></tr>
+          </thead>
+          <tbody>
+            {% for day in week.days %}
+              <tr {% if week.week == today_week and day.day_index == today_day %}id="today-session"{% endif %}>
+                <td>Day {{ day.day_index }}</td>
+                <td>{{ day.title or day.template_name }}</td>
+                <td>{{ day.discipline or '-' }}</td>
+                <td>{{ day.duration_minutes or '-' }}</td>
+                <td>
+                  {% if day.completed %}<strong>Completed</strong>
+                  {% elif week.week == today_week and day.day_index == today_day %}<strong>Today</strong>
+                  {% else %}-{% endif %}
+                </td>
+                <td>
+                  {% if week.week == today_week and day.day_index == today_day %}
+                    <a href="#today-session">Focus</a>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endfor %}
+  {% endif %}
+</div>
+{% endblock %}

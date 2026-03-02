@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>FlowForm — Subscribe</title>
+  <meta name="description" content="FlowForm checkout links for suites and single app." />
+  <link rel="icon" href="assets/flowform-logo.png" />
+  <style>
+    :root{--teal:#1aa6a6;--teal2:#0f7f7f;--ink:#0b1220;--muted:#5b667a;--bg:#ffffff;--card:#f6f8fb;--border:#e6ebf2;}
+    *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--ink);}
+    a{color:var(--teal2);text-decoration:none} a:hover{text-decoration:underline}
+    .wrap{max-width:900px;margin:0 auto;padding:24px}
+    .top{display:flex;gap:18px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+    .brand{display:flex;gap:12px;align-items:center}
+    .brand img{height:44px}
+    .nav{display:flex;gap:14px;flex-wrap:wrap;font-size:14px}
+    .box{border:1px solid var(--border);background:var(--card);border-radius:16px;padding:16px;margin-top:14px}
+    .btn{display:inline-flex;align-items:center;justify-content:center;padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:#fff;font-weight:800}
+    .btn.primary{background:var(--teal);border-color:var(--teal);color:#fff}
+    .btn.primary:hover{background:var(--teal2)}
+    .list{display:grid;gap:10px}
+    .row{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:#fff;border:1px solid var(--border);border-radius:14px;padding:12px}
+    .footer{margin-top:22px;padding-top:14px;border-top:1px solid var(--border);display:flex;gap:14px;flex-wrap:wrap;justify-content:space-between;color:var(--muted);font-size:13px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div class="brand">
+        <img src="assets/flowform-logo.png" alt="FlowForm" />
+        <div>
+          <div style="font-weight:900;">FlowForm</div>
+          <div style="font-size:12px;color:var(--muted);">Secure checkout via Stripe</div>
+        </div>
+      </div>
+      <nav class="nav">
+        <a href="index.html">Home</a>
+        <a href="plans.html">Plans</a>
+        <a href="contact.html">Contact</a>
+      </nav>
+    </header>
+
+    <div class="box">
+      <h1 style="margin:0 0 6px;">Subscribe</h1>
+      <p style="margin:0;color:var(--muted);">
+        Pick a plan below. After payment, Stripe will show a confirmation page and you can return to FlowForm.
+      </p>
+    </div>
+
+    <div class="box">
+      <div class="list">
+        <div class="row">
+          <div><strong>Vitality Suite</strong><div style="color:var(--muted);font-size:13px;">£39.99 / month</div></div>
+          <a class="btn primary" href="https://buy.stripe.com/bJeeVd6z1evAbFzgwKaMU0b">Subscribe</a>
+        </div>
+
+        <div class="row">
+          <div><strong>Martial Arts Suite</strong><div style="color:var(--muted);font-size:13px;">£24.99 / month</div></div>
+          <a class="btn primary" href="https://buy.stripe.com/14A8wP3mPcnsaBvgwKaMU0a">Subscribe</a>
+        </div>
+
+        <div class="row">
+          <div><strong>Fitness Suite</strong><div style="color:var(--muted);font-size:13px;">£24.99 / month</div></div>
+          <a class="btn primary" href="https://buy.stripe.com/bJeaEXe1tevA10VcguaMU09">Subscribe</a>
+        </div>
+
+        <div class="row">
+          <div><strong>Recovery</strong><div style="color:var(--muted);font-size:13px;">£24.99 / month</div></div>
+          <a class="btn primary" href="https://buy.stripe.com/14A00j4qT738cJDgwKaMU08">Subscribe</a>
+        </div>
+
+        <div class="row">
+          <div><strong>Single App</strong><div style="color:var(--muted);font-size:13px;">£14.99 / month</div></div>
+          <a class="btn primary" href="https://buy.stripe.com/5kQ8wP2iLafk10VfsGaMU07">Subscribe</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="box">
+      <div style="font-weight:900;">What happens after payment?</div>
+      <ol style="color:var(--muted);margin:8px 0 0 18px;">
+        <li>You’ll see Stripe confirmation.</li>
+        <li>Use the link there to return to FlowForm.</li>
+        <li>If you cancel, you’ll see our cancel page.</li>
+      </ol>
+    </div>
+
+    <footer class="footer">
+      <div><a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a></div>
+      <div><a href="success.html">Success</a> · <a href="cancel.html">Cancel</a></div>
+    </footer>
+  </div>
+</body>
+</html>

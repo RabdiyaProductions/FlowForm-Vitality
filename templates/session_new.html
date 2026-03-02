@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <h1>Create Session</h1>
+  {% if error %}<p style="color:#ff9c9c;">{{ error }}</p>{% endif %}
+  <form method="post" action="/sessions/create">
+    <label>Title</label>
+    <input type="text" name="title" required value="{{ form_data.get('title', '') }}" />
+
+    <label>Category</label>
+    <input type="text" name="category" required value="{{ form_data.get('category', '') }}" />
+
+    <label>Intensity (1–10)</label>
+    <input type="number" name="intensity" min="1" max="10" required value="{{ form_data.get('intensity', '5') }}" />
+
+    <label>Duration (minutes)</label>
+    <input type="number" name="duration_minutes" min="1" required value="{{ form_data.get('duration_minutes', '') }}" />
+
+    <label>Notes</label>
+    <textarea name="notes" rows="4">{{ form_data.get('notes', '') }}</textarea>
+
+    <label>Attach media (optional)</label>
+    <select name="media_id">
+      <option value="">-- none --</option>
+      {% for m in (media_items or []) %}
+        <option value="{{ m.id }}" {% if form_data.get('media_id') == (m.id|string) %}selected{% endif %}>[{{ m.category }}] {{ m.original_name }}</option>
+      {% endfor %}
+    </select>
+    <p class="muted" style="margin-top:-6px;">Upload files in <a href="/media" style="color:#9fe6ff;">Media</a> (video/audio/image/PDF).</p>
+
+    <button class="btn" type="submit">Create Session</button>
+  </form>
+</div>
+{% endblock %}

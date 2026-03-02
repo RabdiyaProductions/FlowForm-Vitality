@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <h1>Session Player: {{ session.title }}</h1>
+  <p class="muted">{{ session.duration_minutes }} min • {{ session.intensity }}</p>
+</div>
+
+<div class="card">
+  <h3 id="stepTitle"></h3>
+  <p>Step time left: <span id="stepTime">0</span>s</p>
+  <p>Total elapsed: <span id="elapsed">0</span>s</p>
+  <textarea id="notes" rows="3" placeholder="Session notes"></textarea>
+  <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
+    <button class="btn" id="startBtn">Start</button>
+    <button class="btn" id="nextBtn">Next Step</button>
+    <button class="btn" id="completeBtn">Complete Session</button>
+  </div>
+</div>
+
+<script>
+const sessionData = {{ session|tojson }};
+const steps = sessionData.steps || [];
+let idx = 0;
+let stepLeft = steps[0] ? steps[0].seconds : 0;
+let elapsed = 0;
+let startedAt = null;
+let timer = null;
+
+function render() {
+  const current = steps[idx];
+  document.getElementById('stepTitle').textContent = current ? `Step ${idx+1}/${steps.length}: ${current.name}` : 'Session complete';
+  document.getElementById('stepTime').textContent = Math.max(stepLeft, 0);
+  document.getElementById('elapsed').textContent = elapsed;
+}
+
+function tick() {
+  elapsed += 1;
+  stepLeft -= 1;
+  if (stepLeft <= 0) {
+    idx += 1;
+    if (idx >= steps.length) {
+      clearInterval(timer); timer = null; render(); return;
+    }
+    stepLeft = steps[idx].seconds;
+  }
+  render();
+}
+
+document.getElementById('startBtn').addEventListener('click', () => {
+  if (!startedAt) startedAt = new Date().toISOString();
+  if (!timer) timer = setInterval(tick, 1000);
+});
+
+document.getElementById('nextBtn').addEventListener('click', () => {
+  idx += 1;
+  if (idx >= steps.length) {
+    if (timer) { clearInterval(timer); timer = null; }
+  } else {
+    stepLeft = steps[idx].seconds;
+  }
+  render();
+});
+
+document.getElementById('completeBtn').addEventListener('click', async () => {
+  if (timer) { clearInterval(timer); timer = null; }
+  const payload = {
+    session_id: sessionData.id,
+    started_at: startedAt || new Date().toISOString(),
+    finished_at: new Date().toISOString(),
+    duration_seconds: elapsed,
+    completed: true,
+    notes: document.getElementById('notes').value
+  };
+  const res = await fetch('/api/session_runs', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) { alert('Failed to save run'); return; }
+  window.location.href = '/progress';
+});
+
+render();
+</script>
+{% endblock %}

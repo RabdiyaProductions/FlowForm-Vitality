@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>FlowForm — Startup Check Failed</title>
+  <style>
+    body { margin:0; font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial; background:#160b0b; color:#ffeaea; }
+    .wrap { max-width: 820px; margin: 40px auto; padding: 0 16px; }
+    .card { background:#251212; border:1px solid #5f2a2a; border-radius: 12px; padding: 20px; }
+    h1 { margin:0 0 10px; }
+    code { background:#311818; padding:2px 6px; border-radius:6px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Startup integrity check failed</h1>
+      <p>The app failed the first-run database check. Please fix the issue below, then restart.</p>
+      <p><strong>Reason:</strong> <code>{{ error_message }}</code></p>
+      <p>After fixing, relaunch via <code>_BAT/1_setup.bat</code> then <code>_BAT/2_run.bat</code>.</p>
+    </div>
+  </div>
+</body>
+</html>

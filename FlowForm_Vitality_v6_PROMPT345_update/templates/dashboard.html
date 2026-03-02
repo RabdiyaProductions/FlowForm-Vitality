@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <h1>Dashboard</h1>
+  <p class="muted">Real-time progress cockpit (manual sessions + plan completions).</p>
+
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">
+    {% if view == 'week' %}
+      <a class="btn" href="/dashboard?view=week">This Week</a>
+      <a href="/dashboard?view=month">This Month</a>
+    {% else %}
+      <a href="/dashboard?view=week">This Week</a>
+      <a class="btn" href="/dashboard?view=month">This Month</a>
+    {% endif %}
+    <span class="muted" style="margin-left:auto;">Week starts: {{ week_start }} · Month starts: {{ month_start }}</span>
+  </div>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0;">Selected period</h3>
+  <p><strong>Sessions completed:</strong> {{ period_sessions }}</p>
+  <p><strong>Minutes completed:</strong> {{ period_minutes }}</p>
+  <p><strong>Training load:</strong> {{ '%.1f'|format(period_load) }}</p>
+  <p><strong>Average RPE:</strong> {{ avg_rpe if avg_rpe is not none else 'n/a' }}</p>
+  <p><strong>Average readiness:</strong> {{ readiness_avg if readiness_avg is not none else 'n/a' }}</p>
+  <p><strong>Current streak:</strong> {{ streak }} day{{ '' if streak == 1 else 's' }}</p>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0;">Quick totals</h3>
+  <p><strong>All-time sessions completed:</strong> {{ total_sessions }}</p>
+  <p><strong>Week-to-date minutes:</strong> {{ weekly_minutes }}</p>
+  <p><strong>Month-to-date minutes:</strong> {{ monthly_minutes }}</p>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0;">Recent activity</h3>
+  <table>
+    <thead><tr><th>Type</th><th>Title</th><th>Minutes</th><th>When</th><th></th></tr></thead>
+    <tbody>
+      {% for a in recent_activity %}
+      <tr>
+        <td>{{ 'Plan' if a.type == 'plan' else 'Manual' }}</td>
+        <td>{{ a.title }}</td>
+        <td>{{ a.minutes }}</td>
+        <td class="muted">{{ a.when }}</td>
+        <td><a href="{{ a.url }}">View</a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">No activity yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0;">Last 5 manual sessions</h3>
+  <table>
+    <thead><tr><th>Title</th><th>Category</th><th>Intensity</th><th>Duration</th><th>Load</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for s in last_sessions %}
+      <tr>
+        <td><a href="/sessions/{{ s['id'] }}">{{ s['title'] }}</a></td>
+        <td>{{ s['category'] }}</td>
+        <td>{{ s['intensity'] }}</td>
+        <td>{{ s['duration_minutes'] }} min</td>
+        <td>{{ s['training_load'] }}</td>
+        <td>{{ 'Completed' if s['completed_at'] else 'Pending' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6">No sessions yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

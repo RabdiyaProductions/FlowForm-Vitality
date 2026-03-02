@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <h1>{{ session['title'] }}</h1>
+  <p><strong>Category:</strong> {{ session['category'] }}</p>
+  <p><strong>Intensity:</strong> {{ session['intensity'] }}</p>
+  <p><strong>Duration:</strong> {{ session['duration_minutes'] }} min</p>
+  <p><strong>Training load:</strong> {{ session['training_load'] }}</p>
+  <p><strong>Notes:</strong> {{ session['notes'] or 'None' }}</p>
+  <p><strong>Status:</strong> {{ 'Completed' if session['completed_at'] else 'Pending' }}</p>
+</div>
+
+{% if media %}
+<div class="card">
+  <h3>Attached media</h3>
+  <p><strong>File:</strong> {{ media.original_name }}</p>
+  <p class="muted">Type: {{ media.category }} • {{ (media.size_bytes // 1024) }} KB</p>
+  <a class="btn" href="/media/{{ media.id }}">View</a>
+  <a class="btn" href="/media/{{ media.id }}/download" style="margin-left:8px;">Download</a>
+</div>
+{% endif %}
+
+<div class="card">
+  <h3>Complete Session</h3>
+  {% if error %}<p style="color:#ff9c9c;">{{ error }}</p>{% endif %}
+  <form method="post" action="/sessions/{{ session['id'] }}/complete">
+    <label>Average Heart Rate</label>
+    <input type="number" name="heart_rate_avg" min="0" />
+
+    <label>Calories</label>
+    <input type="number" name="calories" min="0" />
+
+    <label>Perceived Exertion (1-10)</label>
+    <input type="number" name="perceived_exertion" min="1" max="10" />
+
+    <button class="btn" type="submit">Mark Complete</button>
+  </form>
+</div>
+
+<div class="card">
+  <h3>Latest Metrics</h3>
+  {% if metric %}
+    <p>Heart Rate Avg: {{ metric['heart_rate_avg'] if metric['heart_rate_avg'] is not none else 'N/A' }}</p>
+    <p>Calories: {{ metric['calories'] if metric['calories'] is not none else 'N/A' }}</p>
+    <p>Perceived Exertion: {{ metric['perceived_exertion'] if metric['perceived_exertion'] is not none else 'N/A' }}</p>
+  {% else %}
+    <p>No metrics logged yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

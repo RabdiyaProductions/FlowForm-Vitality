@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>FlowForm — Classes</title>
+  <meta name="description" content="FlowForm class categories: Tai Chi, Fitness, Martial Foundations, Breath & Recovery." />
+  <link rel="icon" href="assets/flowform-logo.png" />
+  <style>
+    :root{--teal:#1aa6a6;--teal2:#0f7f7f;--ink:#0b1220;--muted:#5b667a;--bg:#ffffff;--card:#f6f8fb;--border:#e6ebf2;}
+    *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--ink);}
+    a{color:var(--teal2);text-decoration:none} a:hover{text-decoration:underline}
+    .wrap{max-width:1100px;margin:0 auto;padding:24px}
+    .top{display:flex;gap:18px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+    .brand{display:flex;gap:12px;align-items:center}
+    .brand img{height:44px}
+    .nav{display:flex;gap:14px;flex-wrap:wrap;font-size:14px}
+    h1{margin:16px 0 6px;font-size:30px}
+    .sub{margin:0 0 16px;color:var(--muted)}
+    .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+    .card{border:1px solid var(--border);background:var(--card);border-radius:16px;padding:16px}
+    .card h3{margin:0 0 6px}
+    .card ul{margin:10px 0 0 18px;color:var(--muted);font-size:13px}
+    .btn{display:inline-flex;align-items:center;justify-content:center;padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:#fff;font-weight:900}
+    .btn.primary{background:var(--teal);border-color:var(--teal);color:#fff}
+    .btn.primary:hover{background:var(--teal2)}
+    @media (max-width:900px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div class="brand">
+        <img src="assets/flowform-logo.png" alt="FlowForm" />
+        <div>
+          <div style="font-weight:900;">FlowForm</div>
+          <div style="font-size:12px;color:var(--muted);">Classes</div>
+        </div>
+      </div>
+      <nav class="nav">
+        <a href="index.html">Home</a>
+        <a href="plans.html">Plans</a>
+        <a href="app.html">App</a>
+        <a href="about.html">About</a>
+        <a href="contact.html">Contact</a>
+      </nav>
+    </header>
+
+    <h1>Class categories</h1>
+    <p class="sub">Soft launch preview. We’ll expand this into a full library with filters and progress tracking.</p>
+
+    <section class="grid">
+      <div class="card">
+        <h3>Tai Chi (Flow & Balance)</h3>
+        <div style="color:var(--muted);font-size:13px;">Calm strength, coordination, posture, breath.</div>
+        <ul>
+          <li>Short daily flow sessions</li>
+          <li>Foundational form breakdowns</li>
+          <li>Balance & stability drills</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>FlowForm Fitness</h3>
+        <div style="color:var(--muted);font-size:13px;">Strength, conditioning, mobility, resilience.</div>
+        <ul>
+          <li>Weekly programmes</li>
+          <li>Beginner → advanced tracks</li>
+          <li>Mobility + core stability blocks</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>Martial Foundations</h3>
+        <div style="color:var(--muted);font-size:13px;">Skill-building: technique + structure.</div>
+        <ul>
+          <li>Kung Fu foundations</li>
+          <li>Boxing fundamentals</li>
+          <li>Footwork & control</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>Breath & Recovery</h3>
+        <div style="color:var(--muted);font-size:13px;">Downshift, restore, reset.</div>
+        <ul>
+          <li>Breath & control sessions</li>
+          <li>Wind-down routines</li>
+          <li>Recovery sessions</li>
+        </ul>
+      </div>
+    </section>
+
+    <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;">
+      <a class="btn primary" href="plans.html">Choose a plan</a>
+      <a class="btn" href="subscriptions.html">Subscribe</a>
+    </div>
+  </div>
+</body>
+</html>

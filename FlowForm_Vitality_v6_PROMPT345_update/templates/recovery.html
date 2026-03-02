@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <h1>Daily Recovery Check-in</h1>
+  <p class="muted">Track sleep, stress, soreness, and mood to guide session intensity.</p>
+  <p><strong>Safety disclaimer:</strong> This is not medical advice. Consult a qualified professional for medical decisions.</p>
+  <form method="post" action="/api/recovery/checkin">
+    <label>Date</label>
+    <input type="date" name="date" value="{{ today }}" required />
+
+    <label>Sleep hours</label>
+    <input type="number" name="sleep_hours" min="0" max="24" step="0.1" value="7.0" required />
+
+    <label>Stress (1-10)</label>
+    <input type="number" name="stress_1_10" min="1" max="10" value="5" required />
+
+    <label>Soreness (1-10)</label>
+    <input type="number" name="soreness_1_10" min="1" max="10" value="5" required />
+
+    <label>Mood (1-10)</label>
+    <input type="number" name="mood_1_10" min="1" max="10" value="6" required />
+
+    <label>Notes</label>
+    <textarea name="notes" rows="3" placeholder="optional context"></textarea>
+
+    <button class="btn" type="submit">Save check-in</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Latest readiness</h2>
+  {% if readiness %}
+    <p>Score: <strong>{{ readiness.score }}/100</strong> ({{ readiness.label|upper }})</p>
+    <p class="muted">{{ readiness.explanation }}</p>
+  {% else %}
+    <p class="muted">No check-ins yet.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Last 14 days</h2>
+  <table>
+    <thead><tr><th>Date</th><th>Sleep</th><th>Stress</th><th>Soreness</th><th>Mood</th><th>Notes</th></tr></thead>
+    <tbody>
+      {% for row in entries %}
+      <tr>
+        <td>{{ row.date }}</td>
+        <td>{{ row.sleep_hours }}</td>
+        <td>{{ row.stress_1_10 }}</td>
+        <td>{{ row.soreness_1_10 }}</td>
+        <td>{{ row.mood_1_10 }}</td>
+        <td>{{ row.notes or '-' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6">No check-ins yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

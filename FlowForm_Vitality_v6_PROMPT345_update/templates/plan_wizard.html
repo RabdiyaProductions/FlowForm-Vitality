@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <h1>Create your 4-week plan</h1>
+  <p class="muted">Founder setup wizard. This saves your profile + plan to SQLite.</p>
+  <form method="post" action="/api/plan/create">
+    <label>Goal</label>
+    <select name="goal" required>
+      <option value="strength">Strength</option>
+      <option value="fat_loss">Fat loss</option>
+      <option value="mobility">Mobility</option>
+      <option value="stress">Stress reduction</option>
+      <option value="hybrid" selected>Hybrid</option>
+    </select>
+
+    <label>Days per week (2-6)</label>
+    <input type="number" min="2" max="6" name="days_per_week" value="4" required />
+
+    <label>Minutes per session (30-75)</label>
+    <input type="number" min="30" max="75" name="minutes_per_session" value="50" required />
+
+    <label>Discipline preference rank #1</label>
+    <select name="discipline_rank_1">{% for d in disciplines %}<option value="{{ d }}">{{ d|title }}</option>{% endfor %}</select>
+    <label>Discipline preference rank #2</label>
+    <select name="discipline_rank_2">{% for d in disciplines %}<option value="{{ d }}">{{ d|title }}</option>{% endfor %}</select>
+    <label>Discipline preference rank #3</label>
+    <select name="discipline_rank_3">{% for d in disciplines %}<option value="{{ d }}">{{ d|title }}</option>{% endfor %}</select>
+    <label>Discipline preference rank #4</label>
+    <select name="discipline_rank_4">{% for d in disciplines %}<option value="{{ d }}">{{ d|title }}</option>{% endfor %}</select>
+    <label>Discipline preference rank #5</label>
+    <select name="discipline_rank_5">{% for d in disciplines %}<option value="{{ d }}">{{ d|title }}</option>{% endfor %}</select>
+
+    <label>Injury flags</label>
+    <textarea name="injury_flags" rows="2" placeholder="e.g., left knee sensitivity"></textarea>
+
+    <label>Equipment</label>
+    <textarea name="equipment" rows="2" placeholder="e.g., dumbbells, bike, yoga mat"></textarea>
+
+    <label>Other constraints</label>
+    <textarea name="constraints" rows="2" placeholder="schedule/time restrictions"></textarea>
+
+    <button class="btn" type="submit">Create 4-week plan</button>
+  </form>
+</div>
+{% endblock %}

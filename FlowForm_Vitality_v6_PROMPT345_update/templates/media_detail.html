@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <h1>Media</h1>
+  <p><strong>Name:</strong> {{ item.original_name }}</p>
+  <p class="muted">Type: {{ item.category }} • {{ (item.size_bytes // 1024) }} KB • {{ item.created_at }}</p>
+  {% if item.tags %}<p class="muted">Tags: {{ item.tags }}</p>{% endif %}
+  <div style="margin-top:10px;">
+    <a class="btn" href="/media/{{ item.id }}/download">Download</a>
+    <a class="btn" href="/media" style="margin-left:8px; background:#24324c;">Back</a>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Preview</h3>
+  {% if item.category == 'image' %}
+    <img src="/media/{{ item.id }}/raw" alt="{{ item.original_name }}" style="max-width:100%; border-radius:12px; border:1px solid var(--border);" />
+  {% elif item.category == 'video' %}
+    <video controls style="width:100%; border-radius:12px; border:1px solid var(--border);">
+      <source src="/media/{{ item.id }}/raw" type="{{ item.mime_type }}" />
+      Your browser does not support the video tag.
+    </video>
+  {% elif item.category == 'audio' %}
+    <audio controls style="width:100%;">
+      <source src="/media/{{ item.id }}/raw" type="{{ item.mime_type }}" />
+      Your browser does not support the audio element.
+    </audio>
+  {% elif item.category == 'pdf' %}
+    <iframe src="/media/{{ item.id }}/raw" style="width:100%; height:70vh; border:1px solid var(--border); border-radius:12px;"></iframe>
+  {% else %}
+    <p class="muted">No preview available for this file type.</p>
+  {% endif %}
+</div>
+{% endblock %}

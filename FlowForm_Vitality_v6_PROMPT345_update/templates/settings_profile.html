@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <h1>Profile Settings</h1>
+  <p class="muted">Update your personal profile and plan preferences.</p>
+  <p><strong>Subscription:</strong> {{ subscription.plan|upper }} ({{ subscription.status }})</p>
+  {% if subscription.plan != 'paid' %}
+  <p class="muted">Paid tier includes unlimited plans, priority support, and early access to AI features. <em>Pay now link intentionally unimplemented.</em></p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <form method="post" action="/settings/profile">
+    <label>Name</label>
+    <input type="text" name="display_name" value="{{ user.display_name if user else '' }}" />
+    <label>Goal</label>
+    <input type="text" name="goal" value="{{ profile.goal if profile else 'hybrid' }}" />
+    <label>Days per week</label>
+    <input type="number" name="days_per_week" min="2" max="6" value="{{ profile.days_per_week if profile else 4 }}" />
+    <label>Minutes per session</label>
+    <input type="number" name="minutes" min="30" max="75" value="{{ profile.minutes if profile else 45 }}" />
+    <label>Equipment</label>
+    <input type="text" name="equipment" value="{{ profile.equipment if profile else '' }}" />
+    <label>Constraints</label>
+    <textarea name="constraints" rows="3">{{ profile.constraints if profile else '' }}</textarea>
+    <button class="btn" type="submit">Save profile</button>
+  </form>
+</div>
+{% endblock %}

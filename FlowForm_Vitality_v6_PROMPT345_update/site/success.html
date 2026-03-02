@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>FlowForm — Payment Successful</title>
+  <meta name="robots" content="noindex" />
+  <link rel="icon" href="assets/flowform-logo.png" />
+  <style>
+    :root{--teal:#1aa6a6;--teal2:#0f7f7f;--ink:#0b1220;--muted:#5b667a;--bg:#ffffff;--card:#f6f8fb;--border:#e6ebf2;}
+    *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--ink);}
+    .wrap{max-width:820px;margin:0 auto;padding:28px}
+    .card{border:1px solid var(--border);background:var(--card);border-radius:18px;padding:18px}
+    .btn{display:inline-flex;align-items:center;justify-content:center;padding:12px 14px;border-radius:12px;border:1px solid var(--teal);background:var(--teal);color:#fff;font-weight:900;text-decoration:none}
+    .btn:hover{background:var(--teal2)}
+    a{color:var(--teal2)}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div style="display:flex;gap:12px;align-items:center;">
+        <img src="assets/flowform-logo.png" alt="FlowForm" style="height:48px" />
+        <div>
+          <div style="font-weight:1000;font-size:20px;">Payment successful ✅</div>
+          <div style="color:var(--muted);font-size:13px;">You’re in. Welcome to FlowForm.</div>
+        </div>
+      </div>
+
+      <p style="color:var(--muted);margin-top:14px;">
+        Next step: return to FlowForm and pick your next session. If you need help, contact us.
+      </p>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">
+        <a class="btn" href="index.html">Return to FlowForm</a>
+        <a class="btn" style="background:#fff;color:var(--teal2);" href="contact.html">Contact Support</a>
+      </div>
+
+      <p style="margin-top:14px;color:var(--muted);font-size:13px;">
+        Legal: <a href="terms.html">Terms</a> · <a href="privacy.html">Privacy</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>

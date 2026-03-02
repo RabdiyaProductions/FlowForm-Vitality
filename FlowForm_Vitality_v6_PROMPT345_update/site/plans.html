@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>FlowForm — Plans</title>
+  <meta name="description" content="FlowForm subscription plans: Vitality, Martial, Fitness, Recovery, or Single App." />
+  <link rel="icon" href="assets/flowform-logo.png" />
+  <style>
+    :root{--teal:#1aa6a6;--teal2:#0f7f7f;--ink:#0b1220;--muted:#5b667a;--bg:#ffffff;--card:#f6f8fb;--border:#e6ebf2;}
+    *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--ink);}
+    a{color:var(--teal2);text-decoration:none} a:hover{text-decoration:underline}
+    .wrap{max-width:1100px;margin:0 auto;padding:24px}
+    .top{display:flex;gap:18px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+    .brand{display:flex;gap:12px;align-items:center}
+    .brand img{height:44px}
+    .nav{display:flex;gap:14px;flex-wrap:wrap;font-size:14px}
+    h1{margin:16px 0 6px;font-size:30px}
+    .sub{margin:0 0 16px;color:var(--muted)}
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+    .card{border:1px solid var(--border);background:var(--card);border-radius:16px;padding:16px}
+    .card h3{margin:0 0 6px}
+    ul{margin:10px 0 0 18px;color:var(--muted);font-size:13px}
+    .btn{display:inline-flex;align-items:center;justify-content:center;padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:#fff;font-weight:800}
+    .btn.primary{background:var(--teal);border-color:var(--teal);color:#fff}
+    .btn.primary:hover{background:var(--teal2)}
+    .footer{margin-top:22px;padding-top:14px;border-top:1px solid var(--border);display:flex;gap:14px;flex-wrap:wrap;justify-content:space-between;color:var(--muted);font-size:13px}
+    @media (max-width:900px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div class="brand">
+        <img src="assets/flowform-logo.png" alt="FlowForm" />
+        <div>
+          <div style="font-weight:900;">FlowForm</div>
+          <div style="font-size:12px;color:var(--muted);">Plans & Pricing</div>
+        </div>
+      </div>
+      <nav class="nav">
+        <a href="index.html">Home</a>
+        <a href="subscriptions.html">Subscribe</a>
+        <a href="classes.html">Classes</a>
+        <a href="about.html">About</a>
+        <a href="contact.html">Contact</a>
+      </nav>
+    </header>
+
+    <h1>Choose your plan</h1>
+    <p class="sub">Start with a suite for best value, or subscribe to a single app. Cancel anytime.</p>
+
+    <section class="grid">
+      <div class="card">
+        <h3>Vitality Suite — £39.99/mo</h3>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">
+          <a class="btn primary" href="https://buy.stripe.com/bJeeVd6z1evAbFzgwKaMU0b">Subscribe</a>
+          <a class="btn" href="subscriptions.html">See checkout info</a>
+        </div>
+        <ul>
+          <li>Tai Chi (flow & balance)</li>
+          <li>FlowForm Fitness</li>
+          <li>Breath & Control</li>
+          <li>Recovery Sessions</li>
+          <li>+ Foundations modules</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>Martial Arts Suite — £24.99/mo</h3>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">
+          <a class="btn primary" href="https://buy.stripe.com/14A8wP3mPcnsaBvgwKaMU0a">Subscribe</a>
+        </div>
+        <ul>
+          <li>Tai Chi</li>
+          <li>Kung Fu Foundations</li>
+          <li>Boxing Fundamentals</li>
+          <li>Breath & Control</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>Fitness Suite — £24.99/mo</h3>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">
+          <a class="btn primary" href="https://buy.stripe.com/bJeaEXe1tevA10VcguaMU09">Subscribe</a>
+        </div>
+        <ul>
+          <li>FlowForm Fitness</li>
+          <li>Mobility & Flexibility</li>
+          <li>Core Stability</li>
+          <li>Recovery Sessions</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>Recovery — £24.99/mo</h3>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">
+          <a class="btn primary" href="https://buy.stripe.com/14A00j4qT738cJDgwKaMU08">Subscribe</a>
+        </div>
+        <ul>
+          <li>Recovery Sessions</li>
+          <li>Breath & Control</li>
+          <li>Wind-down routines</li>
+          <li>Mobility support</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>Single App — £14.99/mo</h3>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">
+          <a class="btn primary" href="https://buy.stripe.com/5kQ8wP2iLafk10VfsGaMU07">Subscribe</a>
+        </div>
+        <ul>
+          <li>Choose one focus app</li>
+          <li>Tai Chi / Fitness / Breath / Mobility / Core</li>
+          <li>Upgrade anytime</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>Need help choosing?</h3>
+        <p style="color:var(--muted);margin:8px 0 12px;">
+          Start with Fitness if you want strength & movement, Martial if you want skill, or Vitality if you want everything.
+        </p>
+        <a class="btn" href="contact.html">Contact</a>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <div><a href="index.html">Home</a></div>
+      <div><a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a></div>
+    </footer>
+  </div>
+</body>
+</html>

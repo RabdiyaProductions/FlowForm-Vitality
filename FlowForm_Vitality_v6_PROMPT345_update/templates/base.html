@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>{{ title or 'FlowForm Vitality Master Suite' }}</title>
+  <style>
+    :root { --bg:#0b1220; --card:#111a2e; --text:#e8f0ff; --muted:#8ea2c7; --accent:#1aa6a6; --border:#21304f; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; background:var(--bg); color:var(--text); }
+    .wrap { max-width:1000px; margin:0 auto; padding:20px 14px; }
+    .nav { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+    .nav a { color:#d8ecff; text-decoration:none; border:1px solid var(--border); border-radius:9px; padding:8px 10px; }
+    .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px; margin-bottom:12px; }
+    .muted { color:var(--muted); }
+    .btn { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:9px 12px; cursor:pointer; text-decoration:none; display:inline-block; }
+    input, textarea, select { width:100%; background:#0d1628; color:var(--text); border:1px solid var(--border); border-radius:8px; padding:9px; margin-top:6px; margin-bottom:10px; }
+    table { width:100%; border-collapse:collapse; }
+    th, td { border-bottom:1px solid var(--border); text-align:left; padding:8px 6px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav class="nav">
+      <a href="/dashboard">Dashboard</a>
+      <a href="/sessions">Sessions</a>
+      <a href="/sessions/new">New Session</a>
+      <a href="/ready">Ready</a>
+      <a href="/plan/wizard">Plan Wizard</a>
+      <a href="/plan/current">Current Plan</a>
+      <a href="/recovery">Recovery</a>
+      <a href="/analytics">Analytics</a>
+      <a href="/assistant">Assistant</a>
+      <a href="/media">Media</a>
+      <a href="/settings/profile">Profile</a>
+      <a href="/exports">Exports</a>
+      <a href="/restore">Restore</a>
+      {% if auth_enabled and current_session_user_id %}
+      <a href="/admin">Admin</a>
+      <a href="/logout">Logout</a>
+      {% elif auth_enabled %}
+      <a href="/login">Login</a>
+      <a href="/signup">Sign up</a>
+      {% endif %}
+    </nav>
+    {% block content %}{% endblock %}
+  </div>
+</body>
+</html>

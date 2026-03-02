@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <h1>Restore Backup</h1>
+  <p class="muted">Upload a full backup ZIP. This process will overwrite current database and media files.</p>
+  <p><strong>Warning:</strong> restoring wipes existing data. Confirm before applying.</p>
+</div>
+
+<div class="card">
+  <input id="backupFile" type="file" accept=".zip" />
+  <div style="display:flex; gap:10px; margin-top:8px; flex-wrap:wrap;">
+    <button class="btn" id="previewBtn" type="button">Preview restore summary</button>
+    <button class="btn" id="restoreBtn" type="button">Confirm and restore</button>
+  </div>
+  <pre id="summary" style="white-space:pre-wrap; background:#0d1628; padding:10px; border-radius:8px; min-height:80px; margin-top:10px;"></pre>
+</div>
+
+<script>
+async function callRestore(confirmOverwrite) {
+  const file = document.getElementById('backupFile').files[0];
+  if (!file) return;
+  const form = new FormData();
+  form.append('file', file);
+  form.append('confirm_overwrite', confirmOverwrite ? 'true' : 'false');
+  const res = await fetch('/api/import/backup', { method: 'POST', body: form });
+  const out = await res.json();
+  document.getElementById('summary').textContent = JSON.stringify(out, null, 2);
+}
+
+document.getElementById('previewBtn').addEventListener('click', () => callRestore(false));
+document.getElementById('restoreBtn').addEventListener('click', async () => {
+  const ok = window.confirm('This will overwrite current data and media. Continue?');
+  if (!ok) return;
+  await callRestore(true);
+});
+</script>
+{% endblock %}

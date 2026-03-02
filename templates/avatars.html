@@ -2,7 +2,7 @@
 {% block content %}
 <div class="card">
   <h1>Avatars</h1>
-  <p class="muted">Choose your coach persona and cue preferences.</p>
+  <p class="muted">Choose your coach persona and guidance intensity.</p>
   <form method="post" action="/avatars/select">
     <label>Coach persona</label>
     <select name="avatar_id" required>
@@ -17,13 +17,6 @@
         <option value="{{ g }}" {% if active.guidance_level == g %}selected{% endif %}>{{ g|title }}</option>
       {% endfor %}
     </select>
-
-
-
-    <label style="display:flex; align-items:center; gap:8px; margin-top:8px;">
-      <input type="checkbox" name="voice_enabled" value="1" style="width:auto;" {% if active.voice_enabled %}checked{% endif %} />
-      Voice cues on (read coach cues aloud)
-    </label>
 
     <button class="btn" type="submit">Save coach settings</button>
   </form>

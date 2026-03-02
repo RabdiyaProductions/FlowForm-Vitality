@@ -846,6 +846,11 @@ def test_content_pack_roundtrip_preserves_block_fields(tmp_path, monkeypatch):
     import sqlite3
     con = sqlite3.connect(app.config['DB_PATH'])
     template_id = con.execute('SELECT id FROM session_template ORDER BY id LIMIT 1').fetchone()[0]
+    raw_in = con.execute('SELECT json_blocks FROM session_template WHERE id = ?', (template_id,)).fetchone()[0]
+    payload_in = json.loads(raw_in)
+    payload_in['blocks'][0]['avatar_clip'] = 'hinge'
+    con.execute('UPDATE session_template SET json_blocks = ? WHERE id = ?', (json.dumps(payload_in), template_id))
+    con.commit()
     con.close()
 
     exported = client.post('/content-packs/export', data={'template_id': str(template_id)})
@@ -865,6 +870,7 @@ def test_content_pack_roundtrip_preserves_block_fields(tmp_path, monkeypatch):
     block = payload['blocks'][0]
     assert 'description' in block
     assert 'target' in block
+    assert 'avatar_clip' in block
 
 def test_content_pack_import_rejects_traversal_zip(tmp_path, monkeypatch):
     monkeypatch.setenv('DB_PATH', str(tmp_path / 'content-traversal.db'))
@@ -903,6 +909,11 @@ def test_avatar_selection_persists(tmp_path, monkeypatch):
     avatar_id = con.execute("SELECT id FROM avatar_profile WHERE name = 'Performance Coach'").fetchone()[0]
     con.close()
 
+    save = client.post('/avatars/select', data={'avatar_id': str(avatar_id), 'guidance_level': 'high', 'voice_enabled': '1'}, follow_redirects=True)
+    assert save.status_code == 200
+
+    con = sqlite3.connect(app.config['DB_PATH'])
+    row = con.execute('SELECT avatar_id, guidance_level, voice_enabled FROM avatar_state LIMIT 1').fetchone()
     save = client.post('/avatars/select', data={'avatar_id': str(avatar_id), 'guidance_level': 'high'}, follow_redirects=True)
     assert save.status_code == 200
 
@@ -912,6 +923,7 @@ def test_avatar_selection_persists(tmp_path, monkeypatch):
     assert row is not None
     assert int(row[0]) == int(avatar_id)
     assert row[1] == 'high'
+    assert int(row[2]) == 1
 
 
 def test_session_player_renders_coach_cue_panel(tmp_path, monkeypatch):
@@ -936,6 +948,7 @@ def test_session_player_renders_coach_cue_panel(tmp_path, monkeypatch):
     assert page.status_code == 200
     assert b'Coach cue' in page.data
     assert b'Read cues aloud' in page.data
+    assert b'coach_cue' in page.data
 
 
 def test_avatar_3d_page_loads(tmp_path, monkeypatch):
@@ -947,6 +960,7 @@ def test_avatar_3d_page_loads(tmp_path, monkeypatch):
     assert page.status_code == 200
     assert b'3D Coach Preview' in page.data
     assert b'poseSelect' in page.data
+    assert b'/assets/avatars/three.min.js' in page.data
 
 
 def test_session_player_3d_fallback_hint_present(tmp_path, monkeypatch):
@@ -971,6 +985,8 @@ def test_session_player_3d_fallback_hint_present(tmp_path, monkeypatch):
     assert page.status_code == 200
     assert b'Show 3D coach' in page.data
     assert b'falls back gracefully' in page.data
+    assert b'id="avatar3dFrame"' in page.data
+    assert b'/avatar-3d?embed=1' in page.data
 
 
 def test_template_editor_saves_avatar_clip(tmp_path, monkeypatch):
@@ -992,6 +1008,31 @@ def test_template_editor_saves_avatar_clip(tmp_path, monkeypatch):
     blocks = json.loads(raw).get('blocks', [])
     assert blocks and blocks[0].get('avatar_clip') == 'squat'
 
+
+
+
+def test_template_editor_custom_avatar_clip_fallback(tmp_path, monkeypatch):
+    import sqlite3, json
+    monkeypatch.setenv('DB_PATH', str(tmp_path / 'template-edit-custom.db'))
+    app = create_app(port=5438)
+    client = app.test_client()
+
+    con = sqlite3.connect(app.config['DB_PATH'])
+    template_id = con.execute('SELECT id FROM session_template ORDER BY id LIMIT 1').fetchone()[0]
+    con.close()
+
+    save = client.post(
+        f'/templates/{template_id}/avatar-clips',
+        data={'avatar_clip_0': 'squat', 'avatar_clip_custom_0': 'my_custom_clip'},
+        follow_redirects=True,
+    )
+    assert save.status_code == 200
+
+    con = sqlite3.connect(app.config['DB_PATH'])
+    raw = con.execute('SELECT json_blocks FROM session_template WHERE id = ?', (template_id,)).fetchone()[0]
+    con.close()
+    blocks = json.loads(raw).get('blocks', [])
+    assert blocks and blocks[0].get('avatar_clip') == 'my_custom_clip'
 
 def test_player_handles_missing_avatar_clip_gracefully(tmp_path, monkeypatch):
     import sqlite3, json

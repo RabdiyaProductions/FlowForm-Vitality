@@ -205,8 +205,6 @@
 - template count increases after importing a synthetic/new template,
 - traversal ZIPs are rejected,
 - player page shows the **Open media** button for imported block media.
-- player page shows the **Open media** button for imported block media,
-- Recent events on `/content-packs` include the import/export actions and counts.
 
 ## Codex Preview Readiness Checklist (2026-03-02)
 - [x] Flat repo root; no extra wrapper folder.
@@ -249,28 +247,30 @@
 - interval work/rest rounds progress correctly,
 - substitution notes are saved in completion details,
 - summary shows substitutions without errors.
-## Journey 15 — Template edit + per-block media playback
+
+
+## Journey 14 — Avatar coach cues
 **Steps**
-1. Open `/templates` and click **Edit** for a template.
-2. Update name/discipline/minutes/level.
-3. Attach media to at least one block and save.
-4. Start a session that uses the edited template (`/session/start/<plan_day_id>`).
+1. Open `/avatars`.
+2. Choose persona + guidance level and toggle voice cues on/off.
+3. Save settings.
+4. Open `/plan/current` and start today's session.
 
 **Accept if**
-- save succeeds and template metadata reflects updates,
-- `json_blocks` stores the chosen per-block `media_id`,
-- player page shows **Open media** for block(s) with media attachments.
+- avatar selection persists after refresh,
+- session player shows **Coach cue** panel per block,
+- **Read cues aloud** is available and defaults from avatar voice setting,
+- feature works offline using browser speech synthesis only.
 
 
-## Journey 16 — Release polish checks
+## Journey 15 — 3D coach preview + in-session embed
 **Steps**
-1. Open `/dashboard` and click each top-level nav item shown in the navbar.
-2. Verify empty states for `/sessions`, `/plan/current`, `/media`, and `/content-packs`.
-3. Open `/diagnostics` and `/api/diagnostics`.
-4. Run `python tools/make_release.py` and inspect the generated ZIP.
+1. Open `/avatar-3d` and switch pose options.
+2. Open `/session/start/<plan_day_id>`.
+3. Toggle **Show 3D coach** on and move to next block.
 
 **Accept if**
-- nav links resolve (no broken links/duplicates),
-- empty states include clear CTAs,
-- diagnostics reports route/API gaps and shows total counts,
-- release ZIP is generated under `RELEASES/` and excludes runtime data (`data/`, `logs/`, `instance/`).
+- `/avatar-3d` loads local Three.js assets and model without CDN,
+- pose dropdown updates the preview without crashing if clip is missing,
+- session page keeps working when 3D is off/unavailable,
+- in-session 3D uses embed mode and follows block pose mapping.

@@ -1,3 +1,47 @@
+{% if embed %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>3D Coach Embed</title>
+  <style>
+    body{margin:0;font-family:Inter,Arial,sans-serif;background:#0b1220;color:#dce7ff}
+    .wrap{padding:8px}
+    .muted{color:#9bb0d8;font-size:0.92rem}
+    select{background:#0d1628;color:#dce7ff;border:1px solid #21304f;border-radius:8px;padding:6px 8px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <p class="muted">Lightweight local 3D avatar preview with graceful fallback.</p>
+    <label class="muted" for="poseSelect">Pose</label>
+    <select id="poseSelect">
+      {% for p in ['idle','warmup','squat','hinge','plank','stretch','breathe'] %}
+        <option value="{{ p }}" {% if selected_pose == p %}selected{% endif %}>{{ p }}</option>
+      {% endfor %}
+    </select>
+    <p id="avatarStatus" class="muted">Loading avatar…</p>
+    <canvas id="avatarCanvas" style="width:100%;height:220px;border:1px solid #21304f;border-radius:10px;background:#0d1628;"></canvas>
+    <div id="avatarFallback" style="display:none;margin-top:10px;padding:10px;border:1px solid #21304f;border-radius:10px;">
+      <strong>2D fallback active.</strong> 3D/WebGL is unavailable in this browser.
+    </div>
+  </div>
+  <script src="/assets/avatars/three.min.js"></script>
+  <script src="/assets/avatars/OrbitControls.js"></script>
+  <script src="/assets/avatars/GLTFLoader.js"></script>
+  <script src="/assets/avatars/avatar_viewer.js"></script>
+</body>
+</html>
+{% else %}
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <h1>3D Coach Preview</h1>
+  <p class="muted">Lightweight local 3D avatar preview with graceful fallback.</p>
+  <label>Pose</label>
+  <select id="poseSelect">
+    {% for p in ['idle','warmup','squat','hinge','plank','stretch','breathe'] %}
 {% extends 'base.html' %}
 {% block content %}
 <div class="card" {% if embed %}style="padding:10px;margin:0;"{% endif %}>
@@ -10,6 +54,7 @@
     {% endfor %}
   </select>
   <p id="avatarStatus" class="muted">Loading avatar…</p>
+  <canvas id="avatarCanvas" style="width:100%;height:420px;border:1px solid #21304f;border-radius:10px;background:#0d1628;"></canvas>
   <canvas id="avatarCanvas" style="width:100%;height:{% if embed %}240px{% else %}420px{% endif %};border:1px solid #21304f;border-radius:10px;background:#0d1628;"></canvas>
   <div id="avatarFallback" style="display:none;margin-top:10px;padding:10px;border:1px solid #21304f;border-radius:10px;">
     <strong>2D fallback active.</strong> 3D/WebGL is unavailable in this browser.
@@ -20,3 +65,4 @@
 <script src="/assets/avatars/GLTFLoader.js"></script>
 <script src="/assets/avatars/avatar_viewer.js"></script>
 {% endblock %}
+{% endif %}

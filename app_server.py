@@ -440,6 +440,7 @@ def apply_schema_migrations(connection: sqlite3.Connection) -> None:
             user_id INTEGER PRIMARY KEY,
             avatar_id INTEGER NOT NULL,
             guidance_level TEXT NOT NULL,
+            voice_enabled INTEGER NOT NULL DEFAULT 0,
             updated_at TEXT NOT NULL,
             FOREIGN KEY(avatar_id) REFERENCES avatar_profile(id)
         )
@@ -800,6 +801,10 @@ def build_plan_structure(
     for week in range(1, weeks + 1):
         target = week_target_minutes(minutes_per_session, week)
         phase = {1: "Base", 2: "Build", 3: "Peak", 4: "Deload"}.get(week, f"Week {week}")
+
+    for week in range(1, weeks + 1):
+        target = week_target_minutes(minutes_per_session, week)
+        phase = {1: "Base", 2: "Build", 3: "Peak", 4: "Deload"}.get(week, f"Week {week}")
     used_template_ids: set[int] = set()
 
     for week in range(1, weeks + 1):
@@ -881,6 +886,7 @@ def ensure_avatar_seed(connection: sqlite3.Connection) -> None:
 def active_avatar(connection: sqlite3.Connection, user_id: int) -> dict:
     connection.row_factory = sqlite3.Row
     state = connection.execute(
+        "SELECT avatar_id, guidance_level, voice_enabled FROM avatar_state WHERE user_id = ?",
         "SELECT avatar_id, guidance_level FROM avatar_state WHERE user_id = ?",
         (user_id,),
     ).fetchone()
@@ -895,6 +901,7 @@ def active_avatar(connection: sqlite3.Connection, user_id: int) -> dict:
             "SELECT id, name, style, voice_mode, accent, guidance_level, created_at FROM avatar_profile ORDER BY id ASC LIMIT 1"
         ).fetchone()
     if avatar is None:
+        return {"id": 0, "name": "Coach", "style": "balanced", "voice_mode": "text", "accent": "neutral", "guidance_level": "medium", "voice_enabled": False}
         return {"id": 0, "name": "Coach", "style": "balanced", "voice_mode": "text", "accent": "neutral", "guidance_level": "medium"}
     guidance = str(state["guidance_level"]) if state is not None and state["guidance_level"] else str(avatar["guidance_level"])
     return {
@@ -904,6 +911,7 @@ def active_avatar(connection: sqlite3.Connection, user_id: int) -> dict:
         "voice_mode": str(avatar["voice_mode"]),
         "accent": str(avatar["accent"]),
         "guidance_level": guidance if guidance in {"low", "medium", "high"} else "medium",
+        "voice_enabled": bool(state["voice_enabled"]) if state is not None and state["voice_enabled"] is not None else False,
     }
 
 
@@ -922,6 +930,28 @@ def coach_cue_text(avatar: dict, discipline: str, block: dict, guidance_level: s
         return f"{avatar.get('name','Coach')} | {disc.title()} cue — {name}.{detail}{tgt} Stay controlled and breathe through reps."
     # medium
     return f"{name} — {desc or 'move with control'} {('· ' + target) if target else ''}".strip()
+
+
+def avatar_clip_for_block(discipline: str, block: dict) -> str:
+    explicit = str(block.get("avatar_clip") or "").strip().lower()
+    if explicit:
+        return explicit
+
+    text = f"{discipline} {block.get('name','')} {block.get('description','')} {block.get('target','')}".lower()
+    disc = (discipline or "").lower()
+    if "breath" in disc or "mindful" in disc:
+        return "breathe"
+    if "mobility" in disc or "recovery" in disc or "flex" in disc:
+        return "stretch"
+    if "cardio" in disc or "conditioning" in disc:
+        return "idle"
+    if "strength" in disc:
+        if "hinge" in text or "deadlift" in text:
+            return "hinge"
+        if "push" in text or "press" in text:
+            return "pushup"
+        return "squat"
+    return "idle"
 
 
 def blocks_from_json(raw: str) -> list[dict]:
@@ -3219,6 +3249,9 @@ def create_app(port: int | None = None) -> Flask:
 
         blocks = blocks_from_json(str(row["json_blocks"] or ""))
         for idx, block in enumerate(blocks):
+            selected_clip = (request.form.get(f"avatar_clip_{idx}") or "").strip().lower()
+            custom_clip = (request.form.get(f"avatar_clip_custom_{idx}") or "").strip().lower()
+            block["avatar_clip"] = custom_clip or selected_clip
             clip = (request.form.get(f"avatar_clip_{idx}") or "").strip().lower()
             block["avatar_clip"] = clip
 
@@ -3884,6 +3917,11 @@ def create_app(port: int | None = None) -> Flask:
             b["coach_cue"] = coach_cue_text(avatar, discipline, b, guidance)
             b["avatar_pose"] = avatar_clip_for_block(discipline, b)
 
+        if not blocks:
+            duration = int(row["duration_minutes"] or 30)
+            fallback = {"name": row["template_name"] or "Session", "minutes": duration, "seconds": duration * 60, "description": "", "target": "", "avatar_clip": ""}
+            fallback["coach_cue"] = coach_cue_text(avatar, discipline, fallback, guidance)
+            fallback["avatar_pose"] = avatar_clip_for_block(discipline, fallback)
         if not blocks:
             duration = int(row["duration_minutes"] or 30)
             fallback = {"name": row["template_name"] or "Session", "minutes": duration, "seconds": duration * 60, "description": "", "target": "", "avatar_clip": ""}

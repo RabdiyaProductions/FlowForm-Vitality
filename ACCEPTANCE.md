@@ -229,3 +229,17 @@
 - save succeeds and template metadata reflects updates,
 - `json_blocks` stores the chosen per-block `media_id`,
 - player page shows **Open media** for block(s) with media attachments.
+
+
+## Journey 16 — Release polish checks
+**Steps**
+1. Open `/dashboard` and click each top-level nav item shown in the navbar.
+2. Verify empty states for `/sessions`, `/plan/current`, `/media`, and `/content-packs`.
+3. Open `/diagnostics` and `/api/diagnostics`.
+4. Run `python tools/make_release.py` and inspect the generated ZIP.
+
+**Accept if**
+- nav links resolve (no broken links/duplicates),
+- empty states include clear CTAs,
+- diagnostics reports route/API gaps and shows total counts,
+- release ZIP is generated under `RELEASES/` and excludes runtime data (`data/`, `logs/`, `instance/`).

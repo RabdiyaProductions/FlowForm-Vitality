@@ -3664,64 +3664,68 @@ def create_app(port: int | None = None) -> Flask:
         return jsonify(app_spec())
 
     def diagnostics_payload() -> dict:
-        needed = [
-            '/health',
-            '/version',
-            '/api/health',
-            '/api/diagnostics',
-            '/api/plan/create',
-            '/plan/wizard',
-            '/plan/current',
-            '/dashboard',
-            '/sessions',
-            '/sessions/new',
-            '/sessions/create',
-            '/sessions/<int:session_id>',
-            '/sessions/<int:session_id>/complete',
-            '/recovery',
-            '/analytics',
-            '/exports',
-            '/restore',
-            '/templates',
-            '/content-packs',
-            '/content-packs/export',
-            '/content-packs/import',
-            '/api/recovery/checkin',
-            '/api/export/plan',
-            '/api/export/json',
-            '/api/export/backup',
-            '/api/export/plan_pdf/<plan_id>',
-            '/api/export/session_summary/<completion_id>',
-            '/api/import/backup',
-            '/api/spec',
-            '/diagnostics',
-            '/ready',
-            '/assistant',
-            '/api/assistant/chat',
-            '/media',
-            '/media/upload',
-            '/media/<int:media_id>',
-            '/media/<int:media_id>/download',
-            '/media/<int:media_id>/raw',
+        needed_routes = [
+            '/health', '/version', '/diagnostics', '/ready', '/dashboard', '/sessions', '/sessions/new',
+            '/plan/wizard', '/plan/current', '/recovery', '/analytics', '/assistant', '/media', '/templates',
+            '/content-packs', '/exports', '/restore',
+        ]
+        needed_api = [
+            '/api/health', '/api/diagnostics', '/api/spec', '/api/plan/create', '/api/recovery/checkin',
+            '/api/assistant/chat', '/api/export/plan', '/api/export/json', '/api/export/backup',
+            '/api/export/plan_pdf/<plan_id>', '/api/export/session_summary/<completion_id>', '/api/import/backup',
         ]
 
-        spec_routes = {route["path"] for route in app_spec()["routes"]}
-        missing_from_spec = [route for route in needed if route not in spec_routes]
+        spec = app_spec()
+        spec_routes = {route["path"] for route in spec["routes"]}
+
+        def normalize_route(route: str) -> str:
+            import re
+            return re.sub(r"<[^:>]+:([^>]+)>", r"<\1>", route)
+
+        app_routes = {
+            normalize_route(rule.rule)
+            for rule in app.url_map.iter_rules()
+            if rule.endpoint != 'static'
+        }
+
+        missing_routes = [route for route in needed_routes if route not in spec_routes]
+        missing_api = [route for route in needed_api if route not in spec_routes]
+        missing_runtime_routes = [route for route in (needed_routes + needed_api) if route not in app_routes]
 
         snapshot = db_integrity_snapshot(db_path)
+        connection = sqlite3.connect(db_path)
+        counts = {
+            "templates": connection.execute("SELECT COUNT(*) FROM session_template").fetchone()[0],
+            "plans": connection.execute("SELECT COUNT(*) FROM plan").fetchone()[0],
+            "completions": connection.execute("SELECT COUNT(*) FROM session_completion").fetchone()[0],
+            "recovery": connection.execute("SELECT COUNT(*) FROM recovery_checkin").fetchone()[0],
+            "media": connection.execute("SELECT COUNT(*) FROM media_item").fetchone()[0],
+        }
+        connection.close()
+
         checks = {
             "health_route": "PASS" if "/health" in spec_routes else "FAIL",
-            "spec_mismatch": "FAIL" if missing_from_spec else "PASS",
+            "routes_in_spec": "FAIL" if missing_routes else "PASS",
+            "api_in_spec": "FAIL" if missing_api else "PASS",
+            "runtime_routes": "FAIL" if missing_runtime_routes else "PASS",
             "db_integrity": "PASS" if snapshot["db_ok"] else "FAIL",
         }
 
         return {
             "status": "PASS" if all(v == "PASS" for v in checks.values()) else "FAIL",
-            "needed": needed,
             "checks": checks,
-            "missing_from_spec": missing_from_spec,
+            "missing_routes": missing_routes,
+            "missing_api": missing_api,
+            "missing_runtime_routes": missing_runtime_routes,
             "template_count": snapshot["template_count"],
             "missing_tables": snapshot["missing_tables"],
+            "counts": counts,
+            "totals": {
+                "spec_routes": len(spec_routes),
+                "runtime_routes": len(app_routes),
+                "needed_routes": len(needed_routes),
+                "needed_api": len(needed_api),
+            },
         }
 
     @app.get("/api/diagnostics")

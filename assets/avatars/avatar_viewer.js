@@ -36,17 +36,12 @@
   let currentAction = null;
 
   function playPose(name) {
-    const next = actions[name];
-    if (!next) {
+    if (!actions[name]) {
       statusEl.textContent = `Pose '${name}' not found; showing default.`;
       return;
     }
-    if (currentAction && currentAction !== next && currentAction.crossFadeTo) {
-      currentAction.crossFadeTo(next, 0.25, false);
-    } else if (currentAction && currentAction.stop) {
-      currentAction.stop();
-    }
-    currentAction = next.reset().fadeIn(0.15).play();
+    if (currentAction && currentAction.stop) currentAction.stop();
+    currentAction = actions[name].reset().fadeIn(0.15).play();
     statusEl.textContent = `Pose: ${name}`;
   }
 

@@ -349,3 +349,11 @@ Exact click steps:
 3. Open `/content-packs`, check one or more templates, click **Export ZIP**.
 4. Return to `/content-packs`, choose exported ZIP, click **Import ZIP**.
 5. Open `/session/start/<plan_day_id>` for an imported template and verify **Open media** appears for the block.
+
+## Codex Preview Readiness (2026-03-02)
+- Repo root is flat and contains required app entrypoints (`requirements.txt`, `app_server.py`, `run_server.py`, `templates/`, `tools/`, `tests/`).
+- Linux preview boot path added at root: `start.sh` + `Procfile` using `0.0.0.0` and `$PORT`.
+- Windows boot remains canonical: `setup.bat`, `run.bat`, `open_browser.bat`, `run_tests.bat` plus `_BAT` wrappers.
+- Structure guard enforces ZIP policy (`RELEASES/` only) and ignores runtime dirs (`.venv`, `__pycache__`, `data`, `logs`, `instance`).
+- Prompt 3 lock-in: `media_id` is preserved and session player shows **Open media** link (`/media/<id>`).
+- Prompt 5 lock-in: smoke tests include `/templates` and `/content-packs`; test runner executes structure + pytest checks.

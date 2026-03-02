@@ -132,6 +132,19 @@ def test_diagnostics_endpoints():
     assert 'checks' in payload
 
 
+
+
+def test_templates_and_content_packs_routes(tmp_path, monkeypatch):
+    monkeypatch.setenv('DB_PATH', str(tmp_path / 'catalog.db'))
+    app = create_app(port=5414)
+    client = app.test_client()
+
+    templates_page = client.get('/templates')
+    assert templates_page.status_code == 200
+
+    content_packs_page = client.get('/content-packs')
+    assert content_packs_page.status_code == 200
+
 def test_session_start_finish_and_summary(tmp_path, monkeypatch):
     monkeypatch.setenv('DB_PATH', str(tmp_path / 'session.db'))
     app = create_app(port=5412)

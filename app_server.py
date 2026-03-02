@@ -3630,11 +3630,12 @@ def create_app(port: int | None = None) -> Flask:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run FlowForm Flask server")
+    parser.add_argument("--host", default=None, help="Host/interface to bind")
     parser.add_argument("--port", type=int, default=None, help="Port to bind")
     args = parser.parse_args()
 
     app = create_app(port=args.port)
-    host = os.getenv("HOST", "127.0.0.1")
+    host = args.host or os.getenv("HOST", "0.0.0.0")
     app.run(host=host, port=app.config["PORT"], debug=False)
 
 

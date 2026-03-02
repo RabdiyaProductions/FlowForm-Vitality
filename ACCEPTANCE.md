@@ -233,6 +233,8 @@
 - manual session is created from library action,
 - template can be appended to current plan day list,
 - session completion appears in dashboard analytics.
+
+- [x] Starter pack seeds 35 curated templates (idempotent) across core disciplines, with 30–75 minute sessions and clear block cues.
 ## Journey 15 — Template edit + per-block media playback
 **Steps**
 1. Open `/templates` and click **Edit** for a template.

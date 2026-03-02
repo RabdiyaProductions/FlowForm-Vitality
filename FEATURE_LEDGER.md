@@ -366,6 +366,8 @@ Exact click steps:
 - Extended block schema to include `description` and `target`; session player now renders both.
 - Plan wizard generation now follows progression pattern (base → density → peak → deload) using curated library templates.
 - Content-pack export/import preserves block-level metadata fields (`description`, `target`, `media_id`, `media_sha256`).
+
+- Built-in starter content pack now installs 35 curated templates (idempotent) across strength/cardio/conditioning/mobility/recovery/breathwork/mindfulness with clear block descriptions and target cues.
 ### 8) Content Packs (template + media portability)
 #### Data model
 - `content_pack_event` audit table stores import/export history (`action`, filename, template/media counts, timestamp).

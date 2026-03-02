@@ -1,3 +1,8 @@
+import io
+import json
+import sqlite3
+import zipfile
+
 from app_server import create_app
 
 
@@ -672,3 +677,165 @@ def test_media_upload_and_attach_to_manual_session(tmp_path, monkeypatch):
     media_path = Path(app.root_path) / 'instance' / 'media' / stored_name
     if media_path.exists():
         media_path.unlink()
+
+
+def test_content_packs_page_and_export_zip(tmp_path, monkeypatch):
+    monkeypatch.setenv('DB_PATH', str(tmp_path / 'content-pack.db'))
+    app = create_app(port=5415)
+    client = app.test_client()
+
+    page = client.get('/content-packs')
+    assert page.status_code == 200
+    assert b'Content Packs' in page.data
+
+    db = sqlite3.connect(app.config['DB_PATH'])
+    template_id = db.execute('SELECT id FROM session_template ORDER BY id LIMIT 1').fetchone()[0]
+    db.close()
+
+    exported = client.post('/content-packs/export', data={'template_id': str(template_id)})
+    assert exported.status_code == 200
+    assert exported.mimetype == 'application/zip'
+
+    archive = zipfile.ZipFile(io.BytesIO(exported.data))
+    assert 'content_pack.json' in archive.namelist()
+    payload = json.loads(archive.read('content_pack.json').decode('utf-8'))
+    assert payload['templates']
+
+
+def test_content_pack_import_increases_templates(tmp_path, monkeypatch):
+    monkeypatch.setenv('DB_PATH', str(tmp_path / 'content-import.db'))
+    app = create_app(port=5416)
+    client = app.test_client()
+
+    db = sqlite3.connect(app.config['DB_PATH'])
+    before = db.execute('SELECT COUNT(*) FROM session_template').fetchone()[0]
+    db.close()
+
+    pack_json = {
+        'templates': [
+            {
+                'id': 9999,
+                'name': 'Imported Mobility Block',
+                'discipline': 'mobility',
+                'duration_minutes': 22,
+                'level': 'beginner',
+                'json_blocks': {'blocks': [{'name': 'Flow', 'minutes': 22}]},
+            }
+        ],
+        'media': [],
+        'metadata': {'app_version': 'test', 'exported_at': '2026-03-01T00:00:00+00:00'},
+    }
+
+    mem = io.BytesIO()
+    with zipfile.ZipFile(mem, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr('content_pack.json', json.dumps(pack_json))
+    mem.seek(0)
+
+    imported = client.post('/content-packs/import', data={'pack_file': (mem, 'pack.zip')}, content_type='multipart/form-data')
+    assert imported.status_code == 302
+
+    db = sqlite3.connect(app.config['DB_PATH'])
+    after = db.execute('SELECT COUNT(*) FROM session_template').fetchone()[0]
+    db.close()
+    assert after == before + 1
+
+
+def test_content_pack_import_rejects_traversal_zip(tmp_path, monkeypatch):
+    monkeypatch.setenv('DB_PATH', str(tmp_path / 'content-traversal.db'))
+    app = create_app(port=5417)
+    client = app.test_client()
+
+    mem = io.BytesIO()
+    with zipfile.ZipFile(mem, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr('../evil.txt', 'nope')
+        zf.writestr('content_pack.json', json.dumps({'templates': [], 'media': [], 'metadata': {}}))
+    mem.seek(0)
+
+    imported = client.post('/content-packs/import', data={'pack_file': (mem, 'bad.zip')}, content_type='multipart/form-data')
+    assert imported.status_code == 302
+    assert '/content-packs?error=' in imported.headers['Location']
+
+
+def test_session_start_shows_media_button_for_block_media(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    monkeypatch.setenv('DB_PATH', str(tmp_path / 'block-media.db'))
+    app = create_app(port=5430)
+    client = app.test_client()
+
+    # Upload media first.
+    upload = client.post(
+        '/media/upload',
+        data={'tags': 'block', 'file': (io.BytesIO(b'%PDF-1.4\n%block\n'), 'block.pdf')},
+        content_type='multipart/form-data',
+        follow_redirects=True,
+    )
+    assert upload.status_code == 200
+
+    con = sqlite3.connect(app.config['DB_PATH'])
+    media_id = int(con.execute('SELECT id FROM media_item ORDER BY id DESC LIMIT 1').fetchone()[0])
+
+    # Create plan, then force the first day template block to reference uploaded media.
+    created = client.post('/api/plan/create', json={
+        'goal': 'hybrid',
+        'days_per_week': 3,
+        'minutes_per_session': 45,
+        'disciplines': ['strength', 'cardio', 'mobility', 'recovery', 'conditioning'],
+    })
+    assert created.status_code == 200
+
+    plan_day_id, template_id = con.execute(
+        'SELECT id, template_id FROM plan_day ORDER BY id LIMIT 1'
+    ).fetchone()
+    blocks_json = json.dumps({'blocks': [{'name': 'Block One', 'minutes': 12, 'media_id': media_id}]})
+    con.execute('UPDATE session_template SET json_blocks = ? WHERE id = ?', (blocks_json, int(template_id)))
+    con.commit()
+    con.close()
+
+    page = client.get(f'/session/start/{int(plan_day_id)}')
+    assert page.status_code == 200
+    assert b'Open media' in page.data
+    assert f'"media_id": {media_id}'.encode('utf-8') in page.data
+
+
+def test_template_edit_post_updates_json_blocks(tmp_path, monkeypatch):
+    monkeypatch.setenv('DB_PATH', str(tmp_path / 'template-edit.db'))
+    app = create_app(port=5431)
+    client = app.test_client()
+
+    # Seed one media row used in block mapping.
+    up = client.post(
+        '/media/upload',
+        data={'tags': 'edit', 'file': (io.BytesIO(b'%PDF-1.4\n%edit\n'), 'edit.pdf')},
+        content_type='multipart/form-data',
+        follow_redirects=True,
+    )
+    assert up.status_code == 200
+
+    con = sqlite3.connect(app.config['DB_PATH'])
+    template_id = int(con.execute('SELECT id FROM session_template ORDER BY id LIMIT 1').fetchone()[0])
+    media_id = int(con.execute('SELECT id FROM media_item ORDER BY id DESC LIMIT 1').fetchone()[0])
+    con.close()
+
+    edited = client.post(
+        f'/templates/{template_id}/edit',
+        data={
+            'name': 'Edited Template Name',
+            'discipline': 'strength',
+            'duration_minutes': '40',
+            'level': 'intermediate',
+            'block_name': ['Warmup', 'Main'],
+            'block_minutes': ['10', '30'],
+            'block_media_id': ['', str(media_id)],
+        },
+        follow_redirects=False,
+    )
+    assert edited.status_code in (302, 303)
+
+    con = sqlite3.connect(app.config['DB_PATH'])
+    row = con.execute('SELECT name, json_blocks FROM session_template WHERE id = ?', (template_id,)).fetchone()
+    con.close()
+    assert row[0] == 'Edited Template Name'
+    blocks_payload = json.loads(row[1])
+    assert blocks_payload['blocks'][1]['media_id'] == media_id
+    assert blocks_payload['blocks'][0]['name'] == 'Warmup'

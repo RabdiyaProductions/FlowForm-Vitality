@@ -331,6 +331,7 @@ def apply_schema_migrations(connection: sqlite3.Connection) -> None:
     )
     ensure_column(connection, "media_item", "sha256", "sha256 TEXT")
 
+
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS content_pack_event (
@@ -2665,6 +2666,10 @@ def create_app(port: int | None = None) -> Flask:
             trend=trend,
             suggested_intensity=suggested_intensity,
         )
+        write_audit(connection, "plan_today_template_swapped", {"plan_day_id": int(today_row["id"]), "template_id": int(suggestion["id"])})
+        connection.commit()
+        connection.close()
+        return redirect(url_for("plan_current"))
 
     @app.post("/api/plan/apply-readiness-suggestion")
     @require_login
@@ -4229,6 +4234,48 @@ def create_app(port: int | None = None) -> Flask:
         return jsonify(app_spec())
 
     def diagnostics_payload() -> dict:
+        needed = [
+            '/health',
+            '/version',
+            '/api/health',
+            '/api/diagnostics',
+            '/api/plan/create',
+            '/plan/wizard',
+            '/plan/current',
+            '/dashboard',
+            '/sessions',
+            '/sessions/new',
+            '/sessions/create',
+            '/sessions/<int:session_id>',
+            '/sessions/<int:session_id>/complete',
+            '/recovery',
+            '/analytics',
+            '/exports',
+            '/restore',
+            '/templates',
+            '/content-packs',
+            '/library',
+            '/avatars',
+            '/avatar-3d',
+            '/content-packs/export',
+            '/content-packs/import',
+            '/api/recovery/checkin',
+            '/api/export/plan',
+            '/api/export/json',
+            '/api/export/backup',
+            '/api/export/plan_pdf/<plan_id>',
+            '/api/export/session_summary/<completion_id>',
+            '/api/import/backup',
+            '/api/spec',
+            '/diagnostics',
+            '/ready',
+            '/assistant',
+            '/api/assistant/chat',
+            '/media',
+            '/media/upload',
+            '/media/<int:media_id>',
+            '/media/<int:media_id>/download',
+            '/media/<int:media_id>/raw',
         needed_routes = [
             '/health', '/version', '/diagnostics', '/ready', '/dashboard', '/sessions', '/sessions/new',
             '/plan/wizard', '/plan/current', '/recovery', '/analytics', '/assistant', '/media', '/templates',

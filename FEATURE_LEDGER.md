@@ -368,6 +368,14 @@ Exact click steps:
 - Content-pack export/import preserves block-level metadata fields (`description`, `target`, `media_id`, `media_sha256`).
 
 - Built-in starter content pack now installs 35 curated templates (idempotent) across strength/cardio/conditioning/mobility/recovery/breathwork/mindfulness with clear block descriptions and target cues.
+
+
+## Avatar coach layer (non-3D)
+- Added `avatar_profile` + `avatar_state` persistence for persona preferences.
+- Seeded personas: Calm Coach, Performance Coach, Mindful Guide.
+- Added `/avatars` settings for persona, guidance level (`low|medium|high`), and voice on/off.
+- Session player renders per-block coach cues and optional client-side speech via Web Speech API.
+- Voice preference persists and preselects **Read cues aloud** in the session runner.
 ### 8) Content Packs (template + media portability)
 #### Data model
 - `content_pack_event` audit table stores import/export history (`action`, filename, template/media counts, timestamp).

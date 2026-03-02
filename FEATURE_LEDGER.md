@@ -357,3 +357,28 @@ Exact click steps:
 - Structure guard enforces ZIP policy (`RELEASES/` only) and ignores runtime dirs (`.venv`, `__pycache__`, `data`, `logs`, `instance`).
 - Prompt 3 lock-in: `media_id` is preserved and session player shows **Open media** link (`/media/<id>`).
 - Prompt 5 lock-in: smoke tests include `/templates` and `/content-packs`; test runner executes structure + pytest checks.
+
+
+### 8) Content Packs (template + media portability)
+#### Data model
+- `content_pack_event` audit table stores import/export history (`action`, filename, template/media counts, timestamp).
+- `media_item.sha256` is ensured for deterministic media dedupe and pack addressing.
+
+#### UI: `GET /content-packs`
+Behavior:
+- select templates for export to ZIP,
+- upload ZIP for import,
+- shows last 25 content pack events.
+
+#### Export API: `POST /content-packs/export`
+Behavior:
+- creates ZIP with `content_pack.json` manifest plus `media/<sha256>.<ext>` members,
+- records an `export` event in `content_pack_event`.
+
+#### Import API: `POST /content-packs/import`
+Behavior:
+- validates ZIP and `content_pack.json` structure,
+- rejects traversal members / missing manifest / bad checksums,
+- dedupes media by `sha256`,
+- inserts templates and remaps block `media_id` by manifest `media_sha256`,
+- records an `import` event in `content_pack_event`.

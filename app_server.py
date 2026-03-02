@@ -453,88 +453,34 @@ def apply_schema_migrations(connection: sqlite3.Connection) -> None:
     connection.execute("INSERT INTO _healthcheck(checked_at) VALUES (?)", (now,))
 
 
-BUILTIN_TEMPLATE_PACK_VERSION = "2026.03.library.v2"
+BUILTIN_TEMPLATE_PACK_VERSION = "2026.03.library.v1"
 
 
-def _build_blocks(warm: str, main: str, finisher: str, minutes: tuple[int, int, int], cues: tuple[str, str, str]) -> dict:
-    return {
-        "blocks": [
-            {"name": warm, "minutes": minutes[0], "description": f"Prepare movement quality for {warm.lower()}.", "target": cues[0]},
-            {"name": main, "minutes": minutes[1], "description": f"Primary training focus: {main.lower()}.", "target": cues[1]},
-            {"name": finisher, "minutes": minutes[2], "description": f"Close session with {finisher.lower()}.", "target": cues[2]},
-        ]
-    }
-
-
-def _starter_templates() -> list[dict]:
-    templates: list[dict] = []
-    specs = {
-        "strength": [
-            ("Strength Base A", 45, "beginner", ("Warm-up", "Squat + Press", "Cooldown"), (8, 29, 8), ("RPE 3", "4x6 @ controlled tempo", "Nasal downshift")),
-            ("Strength Base B", 50, "beginner", ("Activation", "Hinge + Row", "Mobility Finish"), (10, 32, 8), ("Joint prep", "5x5 @ RPE 7", "Long exhales")),
-            ("Strength Builder", 55, "intermediate", ("Prep", "Push + Pull Superset", "Core"), (10, 35, 10), ("Bar path drill", "5 rounds", "3 controlled sets")),
-            ("Strength Density", 60, "intermediate", ("Warm-up", "Compound Ladder", "Cooldown"), (10, 40, 10), ("RPE 4", "Density blocks", "Breathing reset")),
-            ("Strength Peak", 65, "advanced", ("Prep", "Heavy Main Lift", "Accessory Finish"), (12, 41, 12), ("Movement prep", "Top sets @ RPE 8", "Quality reps")),
-        ],
-        "cardio": [
-            ("Cardio Zone 2 30", 30, "beginner", ("Ramp", "Zone 2", "Cooldown"), (6, 18, 6), ("RPE 3", "Talk test pass", "RPE 2")),
-            ("Cardio Zone 2 40", 40, "beginner", ("Ramp", "Steady Aerobic", "Cooldown"), (8, 26, 6), ("Cadence prep", "RPE 4-5", "Nasal breathing")),
-            ("Cardio Tempo 45", 45, "intermediate", ("Warm-up", "Tempo Set", "Cooldown"), (8, 29, 8), ("RPE 3-4", "3x8 min tempo", "Easy spin/walk")),
-            ("Cardio Intervals 50", 50, "intermediate", ("Warm-up", "Intervals", "Cooldown"), (10, 32, 8), ("Prime mechanics", "8x2min on/2min steady", "HR recovery")),
-            ("Cardio Progression 60", 60, "advanced", ("Ramp", "Threshold Work", "Cooldown"), (10, 40, 10), ("Smooth build", "5x5 threshold", "Downregulate")),
-        ],
-        "conditioning": [
-            ("Conditioning Circuit 35", 35, "beginner", ("Warm-up", "Circuit", "Cooldown"), (7, 21, 7), ("Prep", "5 rounds", "Slow breath")),
-            ("Conditioning Builder 40", 40, "beginner", ("Activation", "Mixed Modal", "Reset"), (8, 24, 8), ("Prime pattern", "6 rounds", "Walk + breathe")),
-            ("Conditioning Engine 45", 45, "intermediate", ("Warm-up", "Work Blocks", "Cooldown"), (9, 27, 9), ("RPE 4", "4x6 min", "RPE 2")),
-            ("Conditioning Density 55", 55, "intermediate", ("Prep", "Density Rounds", "Reset"), (10, 35, 10), ("Joint prep", "8 rounds", "Nasal-only")),
-            ("Conditioning Peak 65", 65, "advanced", ("Warm-up", "Hard Intervals", "Cooldown"), (12, 41, 12), ("Prime", "10x2 hard", "Long exhale")),
-        ],
-        "mobility": [
-            ("Mobility Flow 30", 30, "all_levels", ("Breathing", "Hip/Spine Flow", "Integration"), (6, 18, 6), ("4/6 breath", "Controlled range", "Light gait")),
-            ("Mobility Restore 35", 35, "all_levels", ("Reset", "Joint CARs", "Release"), (7, 21, 7), ("Ribcage stack", "Slow circles", "Relaxed breath")),
-            ("Mobility Builder 40", 40, "beginner", ("Warm-up", "Flow Blocks", "Cooldown"), (8, 24, 8), ("Movement prep", "3 rounds", "Long exhale")),
-            ("Mobility Performance 45", 45, "intermediate", ("Prep", "Range + Control", "Integration"), (9, 27, 9), ("Quality reps", "Tempo control", "Carryover drill")),
-            ("Mobility Deep Session", 50, "intermediate", ("Reset", "Deep Flow", "Close"), (10, 30, 10), ("Breath-led", "Progressive range", "Downshift")),
-        ],
-        "recovery": [
-            ("Recovery Downshift 30", 30, "all_levels", ("Breathing", "Restore", "Close"), (8, 14, 8), ("Long exhale", "Easy mobility", "Nasal only")),
-            ("Recovery Reset 35", 35, "all_levels", ("Breath Reset", "Tissue Quality", "Calm Finish"), (8, 19, 8), ("Box breathing", "Pain-free range", "RPE 1-2")),
-            ("Recovery Flow 40", 40, "beginner", ("Reset", "Low Load Flow", "Close"), (8, 24, 8), ("RPE 2", "Quality movement", "Relax")),
-            ("Recovery Extended 45", 45, "intermediate", ("Breath", "Flow", "Reflection"), (9, 27, 9), ("Cadence", "Steady rhythm", "Short notes")),
-            ("Recovery Deep 50", 50, "intermediate", ("Prep", "Extended Recovery", "Finish"), (10, 30, 10), ("Calm prep", "Sustained easy effort", "Downshift")),
-        ],
-        "breathwork": [
-            ("Breathwork Cadence 30", 30, "all_levels", ("Settle", "Cadence", "Recovery"), (8, 14, 8), ("Soft inhale", "4-4 / 4-6 cycles", "Return to baseline")),
-            ("Breathwork CO2 35", 35, "all_levels", ("Prep", "CO2 Ladder", "Reset"), (8, 19, 8), ("Nasal prep", "6 rounds", "Relaxed breathing")),
-            ("Breathwork Focus 40", 40, "beginner", ("Downshift", "Focused Breath", "Close"), (8, 24, 8), ("Nervous system prep", "Counted breaths", "Body scan")),
-            ("Breathwork Performance 45", 45, "intermediate", ("Warm-up", "Rhythm Work", "Recovery"), (9, 27, 9), ("Cadence prep", "Progressive sets", "Long exhale")),
-            ("Breathwork Deep 50", 50, "intermediate", ("Settle", "Extended Practice", "Close"), (10, 30, 10), ("Calm state", "Controlled holds", "Nasal only")),
-        ],
-        "mindfulness": [
-            ("Mindfulness Body Scan 30", 30, "all_levels", ("Settle", "Body Scan", "Reflect"), (8, 14, 8), ("Posture check", "Guided attention", "2 bullet notes")),
-            ("Mindfulness Focus 35", 35, "all_levels", ("Reset", "Breath Focus", "Journal"), (8, 19, 8), ("Calm inhale", "Single-point focus", "Short reflection")),
-            ("Mindfulness Recovery 40", 40, "beginner", ("Center", "Awareness Practice", "Close"), (8, 24, 8), ("Grounding", "Non-judgmental awareness", "Ease out")),
-            ("Mindfulness Performance 45", 45, "intermediate", ("Prepare", "Focus Blocks", "Integrate"), (9, 27, 9), ("Set intention", "Sustained focus", "Next action cue")),
-            ("Mindfulness Deep 50", 50, "intermediate", ("Settle", "Long Practice", "Reflect"), (10, 30, 10), ("Calm body", "Extended attention", "Journal prompt")),
-        ],
-    }
-
-    for discipline, items in specs.items():
-        for name, duration, level, names, mins, cues in items:
-            templates.append(
-                {
-                    "name": name,
-                    "discipline": discipline,
-                    "duration_minutes": duration,
-                    "level": level,
-                    "json_blocks": _build_blocks(names[0], names[1], names[2], mins, cues),
-                }
-            )
-    return templates
-
-
-BUILTIN_TEMPLATES: list[dict] = _starter_templates()
+BUILTIN_TEMPLATES: list[dict] = [
+    {
+        "name": "Strength Base: Squat + Push",
+        "discipline": "strength",
+        "duration_minutes": 45,
+        "level": "beginner",
+        "json_blocks": {
+            "blocks": [
+                {"name": "Dynamic Warm-up", "minutes": 8, "description": "Prime hips, shoulders, and trunk.", "target": "RPE 3-4"},
+                {"name": "Back Squat", "minutes": 15, "description": "Controlled reps with full range.", "target": "4x6 @ 3010 tempo"},
+                {"name": "Dumbbell Press", "minutes": 14, "description": "Horizontal push focus.", "target": "4x8 @ RPE 7"},
+                {"name": "Cooldown Mobility", "minutes": 8, "description": "Downshift and restore breathing.", "target": "Nasal breathing + long exhale"},
+            ]
+        },
+    },
+    {"name": "Strength Peak: Hinge + Pull", "discipline": "strength", "duration_minutes": 60, "level": "intermediate", "json_blocks": {"blocks": [{"name": "Warm-up Prep", "minutes": 10, "description": "Posterior chain activation.", "target": "Band + hinge prep"}, {"name": "Deadlift", "minutes": 18, "description": "Primary strength lift.", "target": "5x4 @ RPE 8"}, {"name": "Row Superset", "minutes": 18, "description": "Upper-back volume.", "target": "4 rounds: row + face pull"}, {"name": "Core Brace", "minutes": 8, "description": "Trunk stability circuit.", "target": "3 rounds, controlled breathing"}, {"name": "Cooldown", "minutes": 6, "description": "Lower HR gradually.", "target": "Walk + mobility"}] }},
+    {"name": "Cardio Base Zone 2", "discipline": "cardio", "duration_minutes": 40, "level": "beginner", "json_blocks": {"blocks": [{"name": "Ramp-up", "minutes": 8, "description": "Progressively elevate HR.", "target": "RPE 3"}, {"name": "Zone 2 Sustain", "minutes": 26, "description": "Steady aerobic work.", "target": "Talk-test pass, RPE 4-5"}, {"name": "Cooldown", "minutes": 6, "description": "Ease out of effort.", "target": "RPE 2"}] }},
+    {"name": "Cardio Density Intervals", "discipline": "cardio", "duration_minutes": 50, "level": "intermediate", "json_blocks": {"blocks": [{"name": "Warm-up", "minutes": 10, "description": "Prime mechanics and cadence.", "target": "RPE 3-4"}, {"name": "Tempo Intervals", "minutes": 32, "description": "Alternating tempo and float.", "target": "8 x (2 min hard / 2 min steady)"}, {"name": "Cooldown", "minutes": 8, "description": "Return to baseline.", "target": "Nasal breathing"}] }},
+    {"name": "Mobility Spine + Hips", "discipline": "mobility", "duration_minutes": 35, "level": "all_levels", "json_blocks": {"blocks": [{"name": "Breathing Reset", "minutes": 5, "description": "Reset ribcage and pelvis.", "target": "4s inhale / 6s exhale"}, {"name": "Spine Waves", "minutes": 12, "description": "Thoracic and lumbar articulation.", "target": "Slow controlled reps"}, {"name": "Hip Rotation Flow", "minutes": 12, "description": "Internal/external rotation work.", "target": "3 rounds each side"}, {"name": "Integration", "minutes": 6, "description": "Combine new range into movement.", "target": "Light gait drill"}] }},
+    {"name": "Recovery Reset", "discipline": "recovery", "duration_minutes": 30, "level": "all_levels", "json_blocks": {"blocks": [{"name": "Downshift Breathing", "minutes": 8, "description": "Shift to recovery state.", "target": "Long exhale emphasis"}, {"name": "Tissue Quality", "minutes": 12, "description": "Gentle mobility and release.", "target": "Pain-free range only"}, {"name": "Parasympathetic Finish", "minutes": 10, "description": "Calm nervous system.", "target": "Box breathing"}] }},
+    {"name": "Breathwork Performance Prep", "discipline": "breathwork", "duration_minutes": 30, "level": "all_levels", "json_blocks": {"blocks": [{"name": "Cadence Setup", "minutes": 8, "description": "Set relaxed breathing cadence.", "target": "4-4 rhythm"}, {"name": "CO2 Tolerance Ladder", "minutes": 14, "description": "Controlled breath holds.", "target": "6 rounds, easy discomfort"}, {"name": "Recovery Drift", "minutes": 8, "description": "Return to baseline.", "target": "Nasal-only"}] }},
+    {"name": "Flexibility Lower Body", "discipline": "flexibility", "duration_minutes": 40, "level": "beginner", "json_blocks": {"blocks": [{"name": "Warm Tissue Prep", "minutes": 8, "description": "Light pulse raise.", "target": "RPE 3"}, {"name": "Hamstring + Hip Flexor", "minutes": 20, "description": "Long-duration holds.", "target": "45-60s holds"}, {"name": "Ankle + Calf", "minutes": 7, "description": "Improve dorsiflexion.", "target": "3 sets each side"}, {"name": "Cool Finish", "minutes": 5, "description": "Relax and reset.", "target": "Slow nasal breathing"}] }},
+    {"name": "Conditioning Engine Builder", "discipline": "conditioning", "duration_minutes": 55, "level": "intermediate", "json_blocks": {"blocks": [{"name": "Warm-up", "minutes": 10, "description": "Prepare for mixed-modal work.", "target": "Movement prep circuit"}, {"name": "Mixed Circuit", "minutes": 36, "description": "Work-rest conditioning sets.", "target": "6 rounds 4:2"}, {"name": "Cooldown", "minutes": 9, "description": "Bring HR down and unload.", "target": "Walk + breathe"}] }},
+    {"name": "Mindfulness Recovery Practice", "discipline": "mindfulness", "duration_minutes": 30, "level": "all_levels", "json_blocks": {"blocks": [{"name": "Body Scan", "minutes": 10, "description": "Notice tension without judgement.", "target": "Progressive attention"}, {"name": "Focused Attention", "minutes": 12, "description": "Single-point breath focus.", "target": "Counted breaths"}, {"name": "Reflection", "minutes": 8, "description": "Short journaling close.", "target": "2-3 key notes"}] }},
+]
 
 
 def seed_templates(connection: sqlite3.Connection) -> None:
@@ -860,28 +806,6 @@ def coach_cue_text(avatar: dict, discipline: str, block: dict, guidance_level: s
     return f"{name} — {desc or 'move with control'} {('· ' + target) if target else ''}".strip()
 
 
-def avatar_clip_for_block(discipline: str, block: dict) -> str:
-    explicit = str(block.get("avatar_clip") or "").strip().lower()
-    if explicit:
-        return explicit
-
-    text = f"{discipline} {block.get('name','')} {block.get('description','')} {block.get('target','')}".lower()
-    disc = (discipline or "").lower()
-    if "breath" in disc or "mindful" in disc:
-        return "breathe"
-    if "mobility" in disc or "recovery" in disc or "flex" in disc:
-        return "stretch"
-    if "cardio" in disc or "conditioning" in disc:
-        return "idle"
-    if "strength" in disc:
-        if "hinge" in text or "deadlift" in text:
-            return "hinge"
-        if "push" in text or "press" in text:
-            return "pushup"
-        return "squat"
-    return "idle"
-
-
 def blocks_from_json(raw: str) -> list[dict]:
     """
     Parse a session template's JSON payload into normalized block dictionaries.
@@ -923,7 +847,6 @@ def blocks_from_json(raw: str) -> list[dict]:
 
         description = str(block.get("description", "")).strip()
         target = str(block.get("target", "")).strip()
-        avatar_clip = str(block.get("avatar_clip", "")).strip().lower()
 
         normalized.append(
             {
@@ -932,7 +855,6 @@ def blocks_from_json(raw: str) -> list[dict]:
                 "seconds": minutes_int * 60,
                 "description": description,
                 "target": target,
-                "avatar_clip": avatar_clip,
                 "media_id": media_id_val,
             }
         )
@@ -2816,7 +2738,7 @@ def create_app(port: int | None = None) -> Flask:
         plan = current_plan_record(connection, user_id)
         rows = connection.execute(
             """
-            SELECT id, name, discipline, duration_minutes, level, json_blocks, json_blocks
+            SELECT id, name, discipline, duration_minutes, level, json_blocks
             FROM session_template
             WHERE duration_minutes BETWEEN ? AND ?
             ORDER BY discipline ASC, duration_minutes ASC, id ASC
@@ -2870,7 +2792,7 @@ def create_app(port: int | None = None) -> Flask:
         connection.row_factory = sqlite3.Row
         user_id = current_user_id(connection)
         row = connection.execute(
-            "SELECT id, name, discipline, duration_minutes, level, json_blocks FROM session_template WHERE id = ?",
+            "SELECT id, name, discipline, duration_minutes, level FROM session_template WHERE id = ?",
             (template_id,),
         ).fetchone()
         if row is None:
@@ -3015,6 +2937,132 @@ def create_app(port: int | None = None) -> Flask:
         connection.commit()
         connection.close()
         return redirect(url_for("templates_catalog"))
+
+    @app.get("/templates/<int:template_id>/edit")
+    @require_login
+    def template_edit_page(template_id: int):
+        connection = sqlite3.connect(db_path)
+        connection.row_factory = sqlite3.Row
+        user_id = current_user_id(connection)
+
+        row = connection.execute(
+            """
+            SELECT id, name, discipline, duration_minutes, level, json_blocks
+            FROM session_template
+            WHERE id = ?
+            """,
+            (int(template_id),),
+        ).fetchone()
+        if not row:
+            connection.close()
+            abort(404)
+
+        media_rows = connection.execute(
+            """
+            SELECT id, original_name, mime_type
+            FROM media_item
+            WHERE user_id = ?
+            ORDER BY id DESC
+            """,
+            (user_id,),
+        ).fetchall()
+        connection.close()
+
+        blocks = blocks_from_json(str(row["json_blocks"] or ""))
+        if not blocks:
+            blocks = [{"name": "Block 1", "minutes": 5, "seconds": 300, "media_id": None}]
+
+        media_items = [
+            {
+                "id": int(r["id"]),
+                "original_name": str(r["original_name"]),
+                "category": _media_category(str(r["mime_type"] or "")),
+            }
+            for r in media_rows
+        ]
+
+        return render_template(
+            "template_edit.html",
+            template={
+                "id": int(row["id"]),
+                "name": str(row["name"]),
+                "discipline": str(row["discipline"]),
+                "duration_minutes": int(row["duration_minutes"]),
+                "level": str(row["level"]),
+                "blocks": blocks,
+            },
+            media_items=media_items,
+            disciplines=DISCIPLINES,
+            levels=["beginner", "intermediate", "advanced", "all_levels"],
+            error=request.args.get("error"),
+            message=request.args.get("message"),
+        )
+
+    @app.post("/templates/<int:template_id>/edit")
+    @require_login
+    def template_edit_submit(template_id: int):
+        name = (request.form.get("name") or "").strip()
+        discipline = (request.form.get("discipline") or "strength").strip().lower()
+        level = (request.form.get("level") or "all_levels").strip().lower()
+        try:
+            duration_minutes = max(1, int(request.form.get("duration_minutes") or 30))
+        except ValueError:
+            duration_minutes = 30
+
+        if not name:
+            return redirect(url_for("template_edit_page", template_id=template_id, error="Template name is required."))
+        if discipline not in DISCIPLINES:
+            discipline = "strength"
+        if level not in {"beginner", "intermediate", "advanced", "all_levels"}:
+            level = "all_levels"
+
+        raw_names = request.form.getlist("block_name")
+        raw_minutes = request.form.getlist("block_minutes")
+        raw_media_ids = request.form.getlist("block_media_id")
+        blocks: list[dict] = []
+        total_rows = max(len(raw_names), len(raw_minutes), len(raw_media_ids))
+        for idx in range(total_rows):
+            block_name = (raw_names[idx] if idx < len(raw_names) else "").strip()
+            if not block_name:
+                block_name = f"Block {idx + 1}"
+            minutes_raw = raw_minutes[idx] if idx < len(raw_minutes) else "0"
+            try:
+                block_minutes = max(0, int(minutes_raw))
+            except ValueError:
+                block_minutes = 0
+            media_raw = (raw_media_ids[idx] if idx < len(raw_media_ids) else "").strip()
+            media_id = int(media_raw) if media_raw.isdigit() else None
+            blocks.append({"name": block_name, "minutes": block_minutes, "media_id": media_id})
+
+        connection = sqlite3.connect(db_path)
+        connection.row_factory = sqlite3.Row
+        user_id = current_user_id(connection)
+        exists = connection.execute("SELECT id FROM session_template WHERE id = ?", (int(template_id),)).fetchone()
+        if not exists:
+            connection.close()
+            abort(404)
+
+        valid_media_ids = {
+            int(row[0])
+            for row in connection.execute("SELECT id FROM media_item WHERE user_id = ?", (user_id,)).fetchall()
+        }
+        for block in blocks:
+            mid = block.get("media_id")
+            if isinstance(mid, int) and mid not in valid_media_ids:
+                block["media_id"] = None
+
+        now = utc_now_iso()
+        connection.execute(
+            """
+            UPDATE session_template
+            SET name = ?, discipline = ?, duration_minutes = ?, level = ?, json_blocks = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (name, discipline, duration_minutes, level, json.dumps({"blocks": blocks}), now, int(template_id)),
+        )
+        connection.commit()
+        connection.close()
+        return redirect(url_for("template_edit_page", template_id=template_id, message="Template saved."))
 
 
     @app.get("/content-packs")
@@ -3541,13 +3589,11 @@ def create_app(port: int | None = None) -> Flask:
         guidance = str(avatar.get("guidance_level", "medium"))
         for b in blocks:
             b["coach_cue"] = coach_cue_text(avatar, discipline, b, guidance)
-            b["avatar_pose"] = avatar_clip_for_block(discipline, b)
 
         if not blocks:
             duration = int(row["duration_minutes"] or 30)
-            fallback = {"name": row["template_name"] or "Session", "minutes": duration, "seconds": duration * 60, "description": "", "target": "", "avatar_clip": ""}
+            fallback = {"name": row["template_name"] or "Session", "minutes": duration, "seconds": duration * 60, "description": "", "target": ""}
             fallback["coach_cue"] = coach_cue_text(avatar, discipline, fallback, guidance)
-            fallback["avatar_pose"] = avatar_clip_for_block(discipline, fallback)
             blocks = [fallback]
 
         return render_template(
@@ -3993,67 +4039,68 @@ def create_app(port: int | None = None) -> Flask:
         return jsonify(app_spec())
 
     def diagnostics_payload() -> dict:
-        needed = [
-            '/health',
-            '/version',
-            '/api/health',
-            '/api/diagnostics',
-            '/api/plan/create',
-            '/plan/wizard',
-            '/plan/current',
-            '/dashboard',
-            '/sessions',
-            '/sessions/new',
-            '/sessions/create',
-            '/sessions/<int:session_id>',
-            '/sessions/<int:session_id>/complete',
-            '/recovery',
-            '/analytics',
-            '/exports',
-            '/restore',
-            '/templates',
-            '/content-packs',
-            '/library',
-            '/avatars',
-            '/avatar-3d',
-            '/content-packs/export',
-            '/content-packs/import',
-            '/api/recovery/checkin',
-            '/api/export/plan',
-            '/api/export/json',
-            '/api/export/backup',
-            '/api/export/plan_pdf/<plan_id>',
-            '/api/export/session_summary/<completion_id>',
-            '/api/import/backup',
-            '/api/spec',
-            '/diagnostics',
-            '/ready',
-            '/assistant',
-            '/api/assistant/chat',
-            '/media',
-            '/media/upload',
-            '/media/<int:media_id>',
-            '/media/<int:media_id>/download',
-            '/media/<int:media_id>/raw',
+        needed_routes = [
+            '/health', '/version', '/diagnostics', '/ready', '/dashboard', '/sessions', '/sessions/new',
+            '/plan/wizard', '/plan/current', '/recovery', '/analytics', '/assistant', '/media', '/templates',
+            '/content-packs', '/exports', '/restore',
+        ]
+        needed_api = [
+            '/api/health', '/api/diagnostics', '/api/spec', '/api/plan/create', '/api/recovery/checkin',
+            '/api/assistant/chat', '/api/export/plan', '/api/export/json', '/api/export/backup',
+            '/api/export/plan_pdf/<plan_id>', '/api/export/session_summary/<completion_id>', '/api/import/backup',
         ]
 
-        spec_routes = {route["path"] for route in app_spec()["routes"]}
-        missing_from_spec = [route for route in needed if route not in spec_routes]
+        spec = app_spec()
+        spec_routes = {route["path"] for route in spec["routes"]}
+
+        def normalize_route(route: str) -> str:
+            import re
+            return re.sub(r"<[^:>]+:([^>]+)>", r"<\1>", route)
+
+        app_routes = {
+            normalize_route(rule.rule)
+            for rule in app.url_map.iter_rules()
+            if rule.endpoint != 'static'
+        }
+
+        missing_routes = [route for route in needed_routes if route not in spec_routes]
+        missing_api = [route for route in needed_api if route not in spec_routes]
+        missing_runtime_routes = [route for route in (needed_routes + needed_api) if route not in app_routes]
 
         snapshot = db_integrity_snapshot(db_path)
+        connection = sqlite3.connect(db_path)
+        counts = {
+            "templates": connection.execute("SELECT COUNT(*) FROM session_template").fetchone()[0],
+            "plans": connection.execute("SELECT COUNT(*) FROM plan").fetchone()[0],
+            "completions": connection.execute("SELECT COUNT(*) FROM session_completion").fetchone()[0],
+            "recovery": connection.execute("SELECT COUNT(*) FROM recovery_checkin").fetchone()[0],
+            "media": connection.execute("SELECT COUNT(*) FROM media_item").fetchone()[0],
+        }
+        connection.close()
+
         checks = {
             "health_route": "PASS" if "/health" in spec_routes else "FAIL",
-            "spec_mismatch": "FAIL" if missing_from_spec else "PASS",
+            "routes_in_spec": "FAIL" if missing_routes else "PASS",
+            "api_in_spec": "FAIL" if missing_api else "PASS",
+            "runtime_routes": "FAIL" if missing_runtime_routes else "PASS",
             "db_integrity": "PASS" if snapshot["db_ok"] else "FAIL",
         }
 
         return {
             "status": "PASS" if all(v == "PASS" for v in checks.values()) else "FAIL",
-            "needed": needed,
             "checks": checks,
-            "missing_from_spec": missing_from_spec,
+            "missing_routes": missing_routes,
+            "missing_api": missing_api,
+            "missing_runtime_routes": missing_runtime_routes,
             "template_count": snapshot["template_count"],
             "missing_tables": snapshot["missing_tables"],
+            "counts": counts,
+            "totals": {
+                "spec_routes": len(spec_routes),
+                "runtime_routes": len(app_routes),
+                "needed_routes": len(needed_routes),
+                "needed_api": len(needed_api),
+            },
         }
 
     @app.get("/api/diagnostics")

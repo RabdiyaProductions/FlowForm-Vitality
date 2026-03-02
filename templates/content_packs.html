@@ -24,6 +24,10 @@
   <h2>Export pack</h2>
   <form method="post" action="/content-packs/export">
     <p class="muted">Select one or more templates.</p>
+    {% if not templates %}
+    <p class="muted">No templates available to export yet.</p>
+    <a class="btn" href="/plan/wizard">Create plan templates via wizard</a>
+    {% endif %}
     {% for tpl in templates %}
     <label style="display:flex;align-items:center;gap:8px;margin:6px 0;">
       <input type="checkbox" name="template_id" value="{{ tpl.id }}" style="width:auto;"/>

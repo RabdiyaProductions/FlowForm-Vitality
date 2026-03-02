@@ -20,7 +20,10 @@
         <td>{{ 'Completed' if s['completed_at'] else 'Pending' }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="7">No sessions created.</td></tr>
+      <tr><td colspan="7">
+        <p class="muted" style="margin:0 0 10px 0;">No sessions created yet.</p>
+        <a class="btn" href="/sessions/new">Create your first session</a>
+      </td></tr>
       {% endfor %}
     </tbody>
   </table>

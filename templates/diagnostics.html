@@ -23,13 +23,36 @@
 </div>
 
 <div class="card">
-  <h2>Missing from spec</h2>
-  {% if data.missing_from_spec %}
-    <ul>
-      {% for item in data.missing_from_spec %}
-        <li>{{ item }}</li>
-      {% endfor %}
-    </ul>
+  <h2>Total counts</h2>
+  <ul>
+    <li>Templates: <strong>{{ data.counts.templates }}</strong></li>
+    <li>Plans: <strong>{{ data.counts.plans }}</strong></li>
+    <li>Completions: <strong>{{ data.counts.completions }}</strong></li>
+    <li>Recovery check-ins: <strong>{{ data.counts.recovery }}</strong></li>
+    <li>Media items: <strong>{{ data.counts.media }}</strong></li>
+    <li>Routes in spec: <strong>{{ data.totals.spec_routes }}</strong></li>
+    <li>Routes in runtime map: <strong>{{ data.totals.runtime_routes }}</strong></li>
+  </ul>
+</div>
+
+<div class="card">
+  <h2>Missing UI routes</h2>
+  {% if data.missing_routes %}
+    <ul>{% for item in data.missing_routes %}<li>{{ item }}</li>{% endfor %}</ul>
+  {% else %}
+    <p>None 🎉</p>
+  {% endif %}
+
+  <h2>Missing API endpoints</h2>
+  {% if data.missing_api %}
+    <ul>{% for item in data.missing_api %}<li>{{ item }}</li>{% endfor %}</ul>
+  {% else %}
+    <p>None 🎉</p>
+  {% endif %}
+
+  <h2>Missing from runtime route map</h2>
+  {% if data.missing_runtime_routes %}
+    <ul>{% for item in data.missing_runtime_routes %}<li>{{ item }}</li>{% endfor %}</ul>
   {% else %}
     <p>None 🎉</p>
   {% endif %}

@@ -7,6 +7,19 @@
   {% if message %}<p style="color:#98ffcc;"><strong>{{ message }}</strong></p>{% endif %}
 </div>
 
+
+<div class="card">
+  <h2>Install built-in packs</h2>
+  <p class="muted">Install curated 4-week packs directly without ZIP upload.</p>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    {% for pack in builtin_packs %}
+    <form method="post" action="/content-packs/install-builtin/{{ pack.slug }}" style="margin:0;">
+      <button class="btn" type="submit">Install {{ pack.name }}</button>
+    </form>
+    {% endfor %}
+  </div>
+</div>
+
 <div class="card">
   <h2>Export pack</h2>
   <form method="post" action="/content-packs/export">

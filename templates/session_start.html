@@ -4,6 +4,9 @@
   <h1>Session Start</h1>
   <p><strong>{{ session.title }}</strong> · Week {{ session.week }} Day {{ session.day_index }}</p>
   <p class="muted">{{ session.template_name }}</p>
+  <label>Intensity</label>
+  <input id="intensitySlider" type="range" min="0" max="2" step="1" value="{{ 0 if session.intensity=='low' else (2 if session.intensity=='high' else 1) }}" />
+  <p class="muted">Mode: <strong id="intensityLabel">{{ session.intensity|title }}</strong> · Suggested RPE <strong id="rpeTarget">{{ session.rpe_target }}</strong></p>
 </div>
 
 <div class="card">
@@ -130,7 +133,49 @@ function render() {
   } else {
     secondsLeft = Number(b.seconds||0);
   }
+  const label=document.getElementById('intensityLabel'); if(label) label.textContent=mode[0].toUpperCase()+mode.slice(1);
+  const rpe=document.getElementById('rpeTarget'); if(rpe) rpe.textContent=String(blocks[blockIdx]?.rpe_target||7);
 }
+function blockMeta(b){
+  if((b.type||'timed')==='reps') return `Type: reps${b.reps?` · ${b.reps}`:''}${b.tempo?` · tempo ${b.tempo}`:''}`;
+  if((b.type||'timed')==='interval') return `Type: interval · ${b.rounds||1} rounds · work ${b.work_seconds||0}s / rest ${b.rest_seconds||0}s`;
+  return `Type: timed · ${b.minutes||0} min`;
+}
+function resetTimerForBlock(b){
+  if((b.type||'timed')==='interval'){ intervalState={phase:'work',roundsDone:0}; secondsLeft=Math.max(1, Number(b.work_seconds||20)); }
+  else { secondsLeft = Number(b.seconds||0); }
+}
+function render(){
+  const b = blocks[blockIdx] || {name:'Done',type:'timed',seconds:0};
+  document.getElementById('blockTitle').textContent=b.name||'Block';
+  document.getElementById('blockMeta').textContent=blockMeta(b);
+  document.getElementById('blockDescription').textContent=b.description||'';
+  document.getElementById('blockTarget').textContent=b.target||'';
+  document.getElementById('blockIndex').textContent=String(Math.min(blockIdx+1, blocks.length));
+  document.getElementById('timeLeft').textContent=fmt(secondsLeft);
+  document.getElementById('substituteNote').value = substitutions[blockIdx] || '';
+  const wrap=document.getElementById('mediaWrap'); const btn=document.getElementById('mediaBtn');
+  if (b.media_id){ wrap.style.display='block'; btn.href=`/media/${b.media_id}`; } else { wrap.style.display='none'; btn.href='#'; }
+  sync3DPose();
+}
+function sync3DPose(){
+  const toggle=document.getElementById('show3dToggle'), panel=document.getElementById('avatar3dPanel'), frame=document.getElementById('avatar3dFrame');
+  if(!toggle || !panel || !frame) return;
+  if(!toggle.checked){ panel.style.display='none'; return; }
+  panel.style.display='block';
+  const pose = String((blocks[blockIdx]||{}).avatar_pose || 'idle');
+  const src = `/avatar-3d?embed=1&pose=${encodeURIComponent(pose)}`;
+  if(!frame.src){ frame.src = src; return; }
+  try { frame.contentWindow.postMessage({type:'avatar-pose', pose}, '*'); } catch(_) { frame.src = src; }
+}
+function tickInterval(b){
+  if(secondsLeft>0){ secondsLeft -= 1; return; }
+  if(intervalState.phase==='work'){
+    if((b.rest_seconds||0)>0){ intervalState.phase='rest'; secondsLeft=Number(b.rest_seconds||0); return; }
+    intervalState.roundsDone += 1; if(intervalState.roundsDone >= Number(b.rounds||1)){ nextBlock(); return; }
+    secondsLeft = Number(b.work_seconds||20); return;
+  }
+  intervalState.roundsDone += 1; if(intervalState.roundsDone >= Number(b.rounds||1)){ nextBlock(); return; }
 function render(){
   const b = blocks[blockIdx] || {name:'Done',type:'timed',seconds:0};
   document.getElementById('blockTitle').textContent=b.name||'Block';
@@ -214,11 +259,11 @@ async function finishSession(){
   pauseTimer(); substitutions[blockIdx]=document.getElementById('substituteNote').value||'';
   const detailBlocks = blocks.map((b,i)=>({ index:i+1, name:b.name||`Block ${i+1}`, substitute: substitutions[i]||'', type:b.type||'timed' }));
   const payload={ plan_day_id: sessionData.plan_day_id, rpe:Number(document.getElementById('rpe').value||7), notes:document.getElementById('notes').value,
+    minutes_done:Number(document.getElementById('minutesDone').value||0), details:{ substitutions: detailBlocks, intensity: intensityMode(), rpe_target: (blocks[blockIdx]?.rpe_target||7) } };
     minutes_done:Number(document.getElementById('minutesDone').value||0), details:{ substitutions: detailBlocks } };
   const res = await fetch('/api/session/finish', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
   const out = await res.json(); if(out.ok && out.redirect) window.location.href = out.redirect; else alert(out.error||'Failed');
 }
-
 document.getElementById('startBtn').addEventListener('click', startTimer);
 document.getElementById('pauseBtn').addEventListener('click', pauseTimer);
 document.getElementById('nextBtn').addEventListener('click', nextBlock);
@@ -226,6 +271,11 @@ document.getElementById('backBtn').addEventListener('click', backBlock);
 document.getElementById('finishBtn').addEventListener('click', ()=>{ pauseTimer(); document.getElementById('finishModal').style.display='block'; });
 document.getElementById('saveCompletionBtn').addEventListener('click', finishSession);
 document.getElementById('cancelCompletionBtn').addEventListener('click', ()=>{ document.getElementById('finishModal').style.display='none'; });
+document.getElementById('show3dToggle').addEventListener('change', sync3DPose);
+document.getElementById('intensitySlider')?.addEventListener('input', ()=>{ applyIntensityClient(); resetTimerForBlock(blocks[blockIdx]||{}); render(); });
+applyIntensityClient();
+resetTimerForBlock(blocks[0]||{});
+render();
 resetTimerForBlock(blocks[0]||{}); render();
 </script>
 {% endblock %}

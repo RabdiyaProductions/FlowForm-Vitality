@@ -274,3 +274,29 @@
 - pose dropdown updates the preview without crashing if clip is missing,
 - session page keeps working when 3D is off/unavailable,
 - in-session 3D uses embed mode and follows block pose mapping.
+
+
+## Journey 16 — Intensity + equipment adaptive sessions
+**Steps**
+1. Open `/library` and set equipment filter (e.g., `dumbbells`).
+2. Start a session and adjust intensity slider Low/Med/High.
+3. Run first block for each setting.
+4. Open `/content-packs` and install a built-in 4-week pack.
+
+**Accept if**
+- library equipment filter narrows templates by equipment tags,
+- intensity slider adjusts block timing and suggested RPE target,
+- session remains stable with interval/timed blocks,
+- built-in packs install from content-packs without ZIP upload.
+
+
+## Journey 17 — Founder analytics + CSV exports
+**Steps**
+1. Open `/analytics`.
+2. Validate weekly load, RPE trend/average, readiness-completion correlation, and domain balance cards.
+3. Download all CSVs from analytics page.
+
+**Accept if**
+- analytics cards render meaningful values,
+- CSV endpoints return downloadable files for completions/recovery/weekly load,
+- analytics remains responsive with no crashes.

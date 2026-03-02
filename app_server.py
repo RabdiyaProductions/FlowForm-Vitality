@@ -2635,8 +2635,18 @@ def create_app(port: int | None = None) -> Flask:
 
         entries = [dict(row) for row in rows]
         latest = entries[0] if entries else None
+        trend = []
+        for entry in reversed(entries):
+            score, _ = compute_readiness_score(
+                float(entry.get("sleep_hours") or 0),
+                int(entry.get("stress_1_10") or 5),
+                int(entry.get("soreness_1_10") or 5),
+                int(entry.get("mood_1_10") or 5),
+            )
+            trend.append({"date": entry.get("date"), "score": score})
 
         readiness = None
+        suggested_intensity = "medium"
         if latest is not None:
             score, explanation = compute_readiness_score(
                 float(latest.get("sleep_hours") or 0),
@@ -2645,13 +2655,69 @@ def create_app(port: int | None = None) -> Flask:
                 int(latest.get("mood_1_10") or 5),
             )
             readiness = {"score": score, "label": readiness_label(score), "explanation": explanation}
+            suggested_intensity = "low" if score < 50 else ("medium" if score < 70 else "high")
 
         return render_template(
             "recovery.html",
             today=date.today().isoformat(),
             entries=entries,
             readiness=readiness,
+            trend=trend,
+            suggested_intensity=suggested_intensity,
         )
+
+    @app.post("/api/plan/apply-readiness-suggestion")
+    @require_login
+    def api_apply_readiness_suggestion():
+        connection = sqlite3.connect(db_path)
+        connection.row_factory = sqlite3.Row
+        user_id = current_user_id(connection)
+        plan = current_plan_record(connection, user_id)
+        if plan is None:
+            connection.close()
+            return redirect(url_for("plan_current"))
+
+        try:
+            start_date = datetime.fromisoformat(plan["start_date"]).date()
+        except Exception:
+            start_date = date.today()
+        delta_days = max(0, (date.today() - start_date).days)
+        today_week = min(4, (delta_days // 7) + 1)
+        today_day = min(7, (delta_days % 7) + 1)
+
+        today_row = connection.execute(
+            """
+            SELECT pd.id, pd.template_id, sc.id AS completion_id
+            FROM plan_day pd
+            LEFT JOIN session_completion sc ON sc.plan_day_id = pd.id
+            WHERE pd.plan_id = ? AND pd.week = ? AND pd.day_index = ?
+            LIMIT 1
+            """,
+            (int(plan["id"]), today_week, today_day),
+        ).fetchone()
+        if today_row is None or today_row["completion_id"] is not None:
+            connection.close()
+            return redirect(url_for("plan_current"))
+
+        suggestion = suggestion_for_low_readiness(connection)
+        if not suggestion:
+            connection.close()
+            return redirect(url_for("plan_current"))
+
+        now = utc_now_iso()
+        connection.execute(
+            "UPDATE plan_day SET template_id = ?, title = ?, updated_at = ? WHERE id = ?",
+            (
+                int(suggestion["id"]),
+                f"Week {today_week} Day {today_day}: {suggestion['name']}",
+                now,
+                int(today_row["id"]),
+            ),
+        )
+        write_audit(connection, "plan_today_template_swapped", {"plan_day_id": int(today_row["id"]), "template_id": int(suggestion["id"])})
+        connection.commit()
+        connection.close()
+        return redirect(url_for("plan_current"))
 
     @app.post("/api/recovery/checkin")
     @require_login
@@ -2775,10 +2841,12 @@ def create_app(port: int | None = None) -> Flask:
         today_day = min(7, (delta_days % 7) + 1)
 
         today_plan_day_id = None
+        today_completed = False
         for w in weeks:
             for day in w["days"]:
                 if int(day["week"]) == int(today_week) and int(day["day_index"]) == int(today_day):
                     today_plan_day_id = int(day["id"])
+                    today_completed = bool(day.get("completed"))
                     break
             if today_plan_day_id:
                 break
@@ -2825,6 +2893,7 @@ def create_app(port: int | None = None) -> Flask:
             readiness=readiness,
             suggestion=suggestion,
             suggestion_text=suggestion_text,
+            can_apply_suggestion=bool(suggestion and today_plan_day_id and not today_completed),
         )
 
     @app.get("/library")

@@ -192,14 +192,14 @@ Behavior:
 #### Integration in `GET /plan/current`
 Behavior:
 - readiness badge shown from latest check-in
-- if readiness is low, show non-destructive lighter-template suggestion for today
-- plan is never auto-overwritten by readiness suggestion
+- if readiness is low, show lighter-template suggestion for today with explicit apply action
+- plan is never auto-overwritten by readiness suggestion; apply only changes today when not completed
 
 Exact click steps:
 1. Open `/recovery`.
 2. Submit daily check-in.
 3. Open `/plan/current`.
-4. Verify readiness badge and low-readiness suggestion (when applicable).
+4. Verify readiness badge, low-readiness suggestion, and **Apply suggestion** updates only today if not completed.
 ## Founder-critical plan flow (implemented)
 
 ### UI Route: `/plan/wizard` (GET)

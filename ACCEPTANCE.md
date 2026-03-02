@@ -65,7 +65,7 @@
 **Accept if**
 - check-in persists and is visible in `/recovery` history
 - readiness badge appears on `/plan/current`
-- when readiness is low, a lighter-template suggestion appears without auto-overwriting the plan
+- when readiness is low, a lighter-template suggestion appears with an **Apply suggestion** action for today
 - safety disclaimer is visible on `/recovery` (not medical advice)
 
 

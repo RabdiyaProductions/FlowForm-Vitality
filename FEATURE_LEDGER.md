@@ -366,3 +366,44 @@ Exact click steps:
 - Extended block schema to include `description` and `target`; session player now renders both.
 - Plan wizard generation now follows progression pattern (base → density → peak → deload) using curated library templates.
 - Content-pack export/import preserves block-level metadata fields (`description`, `target`, `media_id`, `media_sha256`).
+### 8) Content Packs (template + media portability)
+#### Data model
+- `content_pack_event` audit table stores import/export history (`action`, filename, template/media counts, timestamp).
+- `media_item.sha256` is ensured for deterministic media dedupe and pack addressing.
+
+#### UI: `GET /content-packs`
+Behavior:
+- select templates for export to ZIP,
+- upload ZIP for import,
+- shows last 25 content pack events.
+
+#### Export API: `POST /content-packs/export`
+Behavior:
+- creates ZIP with `content_pack.json` manifest plus `media/<sha256>.<ext>` members,
+- records an `export` event in `content_pack_event`.
+
+#### Import API: `POST /content-packs/import`
+Behavior:
+- validates ZIP and `content_pack.json` structure,
+- rejects traversal members / missing manifest / bad checksums,
+- dedupes media by `sha256`,
+- inserts templates and remaps block `media_id` by manifest `media_sha256`,
+- records an `import` event in `content_pack_event`.
+
+
+### 9) Template editor with per-block media
+#### UI: `GET /templates/<id>/edit`
+Behavior:
+- edits template metadata (`name`, `discipline`, `duration_minutes`, `level`),
+- edits each block (`name`, `minutes`, `media_id` attachment),
+- media dropdown is sourced from the current user media library.
+
+#### Save API: `POST /templates/<id>/edit`
+Behavior:
+- validates/sanitizes metadata values,
+- persists `json_blocks.blocks[*].media_id` for each block,
+- clears media IDs not owned by the active user.
+
+#### Playback impact
+- `blocks_from_json` preserves per-block `media_id`,
+- session player (`/session/start/<plan_day_id>`) renders **Open media** for blocks with attachments.

@@ -2889,6 +2889,132 @@ def create_app(port: int | None = None) -> Flask:
         connection.close()
         return render_template("templates_catalog.html", templates=[dict(r) for r in rows], limited=limited)
 
+    @app.get("/templates/<int:template_id>/edit")
+    @require_login
+    def template_edit_page(template_id: int):
+        connection = sqlite3.connect(db_path)
+        connection.row_factory = sqlite3.Row
+        user_id = current_user_id(connection)
+
+        row = connection.execute(
+            """
+            SELECT id, name, discipline, duration_minutes, level, json_blocks
+            FROM session_template
+            WHERE id = ?
+            """,
+            (int(template_id),),
+        ).fetchone()
+        if not row:
+            connection.close()
+            abort(404)
+
+        media_rows = connection.execute(
+            """
+            SELECT id, original_name, mime_type
+            FROM media_item
+            WHERE user_id = ?
+            ORDER BY id DESC
+            """,
+            (user_id,),
+        ).fetchall()
+        connection.close()
+
+        blocks = blocks_from_json(str(row["json_blocks"] or ""))
+        if not blocks:
+            blocks = [{"name": "Block 1", "minutes": 5, "seconds": 300, "media_id": None}]
+
+        media_items = [
+            {
+                "id": int(r["id"]),
+                "original_name": str(r["original_name"]),
+                "category": _media_category(str(r["mime_type"] or "")),
+            }
+            for r in media_rows
+        ]
+
+        return render_template(
+            "template_edit.html",
+            template={
+                "id": int(row["id"]),
+                "name": str(row["name"]),
+                "discipline": str(row["discipline"]),
+                "duration_minutes": int(row["duration_minutes"]),
+                "level": str(row["level"]),
+                "blocks": blocks,
+            },
+            media_items=media_items,
+            disciplines=DISCIPLINES,
+            levels=["beginner", "intermediate", "advanced", "all_levels"],
+            error=request.args.get("error"),
+            message=request.args.get("message"),
+        )
+
+    @app.post("/templates/<int:template_id>/edit")
+    @require_login
+    def template_edit_submit(template_id: int):
+        name = (request.form.get("name") or "").strip()
+        discipline = (request.form.get("discipline") or "strength").strip().lower()
+        level = (request.form.get("level") or "all_levels").strip().lower()
+        try:
+            duration_minutes = max(1, int(request.form.get("duration_minutes") or 30))
+        except ValueError:
+            duration_minutes = 30
+
+        if not name:
+            return redirect(url_for("template_edit_page", template_id=template_id, error="Template name is required."))
+        if discipline not in DISCIPLINES:
+            discipline = "strength"
+        if level not in {"beginner", "intermediate", "advanced", "all_levels"}:
+            level = "all_levels"
+
+        raw_names = request.form.getlist("block_name")
+        raw_minutes = request.form.getlist("block_minutes")
+        raw_media_ids = request.form.getlist("block_media_id")
+        blocks: list[dict] = []
+        total_rows = max(len(raw_names), len(raw_minutes), len(raw_media_ids))
+        for idx in range(total_rows):
+            block_name = (raw_names[idx] if idx < len(raw_names) else "").strip()
+            if not block_name:
+                block_name = f"Block {idx + 1}"
+            minutes_raw = raw_minutes[idx] if idx < len(raw_minutes) else "0"
+            try:
+                block_minutes = max(0, int(minutes_raw))
+            except ValueError:
+                block_minutes = 0
+            media_raw = (raw_media_ids[idx] if idx < len(raw_media_ids) else "").strip()
+            media_id = int(media_raw) if media_raw.isdigit() else None
+            blocks.append({"name": block_name, "minutes": block_minutes, "media_id": media_id})
+
+        connection = sqlite3.connect(db_path)
+        connection.row_factory = sqlite3.Row
+        user_id = current_user_id(connection)
+        exists = connection.execute("SELECT id FROM session_template WHERE id = ?", (int(template_id),)).fetchone()
+        if not exists:
+            connection.close()
+            abort(404)
+
+        valid_media_ids = {
+            int(row[0])
+            for row in connection.execute("SELECT id FROM media_item WHERE user_id = ?", (user_id,)).fetchall()
+        }
+        for block in blocks:
+            mid = block.get("media_id")
+            if isinstance(mid, int) and mid not in valid_media_ids:
+                block["media_id"] = None
+
+        now = utc_now_iso()
+        connection.execute(
+            """
+            UPDATE session_template
+            SET name = ?, discipline = ?, duration_minutes = ?, level = ?, json_blocks = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (name, discipline, duration_minutes, level, json.dumps({"blocks": blocks}), now, int(template_id)),
+        )
+        connection.commit()
+        connection.close()
+        return redirect(url_for("template_edit_page", template_id=template_id, message="Template saved."))
+
 
     @app.get("/content-packs")
     @require_login
@@ -3864,66 +3990,68 @@ def create_app(port: int | None = None) -> Flask:
         return jsonify(app_spec())
 
     def diagnostics_payload() -> dict:
-        needed = [
-            '/health',
-            '/version',
-            '/api/health',
-            '/api/diagnostics',
-            '/api/plan/create',
-            '/plan/wizard',
-            '/plan/current',
-            '/dashboard',
-            '/sessions',
-            '/sessions/new',
-            '/sessions/create',
-            '/sessions/<int:session_id>',
-            '/sessions/<int:session_id>/complete',
-            '/recovery',
-            '/analytics',
-            '/exports',
-            '/restore',
-            '/templates',
-            '/content-packs',
-            '/library',
-            '/avatars',
-            '/content-packs/export',
-            '/content-packs/import',
-            '/api/recovery/checkin',
-            '/api/export/plan',
-            '/api/export/json',
-            '/api/export/backup',
-            '/api/export/plan_pdf/<plan_id>',
-            '/api/export/session_summary/<completion_id>',
-            '/api/import/backup',
-            '/api/spec',
-            '/diagnostics',
-            '/ready',
-            '/assistant',
-            '/api/assistant/chat',
-            '/media',
-            '/media/upload',
-            '/media/<int:media_id>',
-            '/media/<int:media_id>/download',
-            '/media/<int:media_id>/raw',
+        needed_routes = [
+            '/health', '/version', '/diagnostics', '/ready', '/dashboard', '/sessions', '/sessions/new',
+            '/plan/wizard', '/plan/current', '/recovery', '/analytics', '/assistant', '/media', '/templates',
+            '/content-packs', '/exports', '/restore',
+        ]
+        needed_api = [
+            '/api/health', '/api/diagnostics', '/api/spec', '/api/plan/create', '/api/recovery/checkin',
+            '/api/assistant/chat', '/api/export/plan', '/api/export/json', '/api/export/backup',
+            '/api/export/plan_pdf/<plan_id>', '/api/export/session_summary/<completion_id>', '/api/import/backup',
         ]
 
-        spec_routes = {route["path"] for route in app_spec()["routes"]}
-        missing_from_spec = [route for route in needed if route not in spec_routes]
+        spec = app_spec()
+        spec_routes = {route["path"] for route in spec["routes"]}
+
+        def normalize_route(route: str) -> str:
+            import re
+            return re.sub(r"<[^:>]+:([^>]+)>", r"<\1>", route)
+
+        app_routes = {
+            normalize_route(rule.rule)
+            for rule in app.url_map.iter_rules()
+            if rule.endpoint != 'static'
+        }
+
+        missing_routes = [route for route in needed_routes if route not in spec_routes]
+        missing_api = [route for route in needed_api if route not in spec_routes]
+        missing_runtime_routes = [route for route in (needed_routes + needed_api) if route not in app_routes]
 
         snapshot = db_integrity_snapshot(db_path)
+        connection = sqlite3.connect(db_path)
+        counts = {
+            "templates": connection.execute("SELECT COUNT(*) FROM session_template").fetchone()[0],
+            "plans": connection.execute("SELECT COUNT(*) FROM plan").fetchone()[0],
+            "completions": connection.execute("SELECT COUNT(*) FROM session_completion").fetchone()[0],
+            "recovery": connection.execute("SELECT COUNT(*) FROM recovery_checkin").fetchone()[0],
+            "media": connection.execute("SELECT COUNT(*) FROM media_item").fetchone()[0],
+        }
+        connection.close()
+
         checks = {
             "health_route": "PASS" if "/health" in spec_routes else "FAIL",
-            "spec_mismatch": "FAIL" if missing_from_spec else "PASS",
+            "routes_in_spec": "FAIL" if missing_routes else "PASS",
+            "api_in_spec": "FAIL" if missing_api else "PASS",
+            "runtime_routes": "FAIL" if missing_runtime_routes else "PASS",
             "db_integrity": "PASS" if snapshot["db_ok"] else "FAIL",
         }
 
         return {
             "status": "PASS" if all(v == "PASS" for v in checks.values()) else "FAIL",
-            "needed": needed,
             "checks": checks,
-            "missing_from_spec": missing_from_spec,
+            "missing_routes": missing_routes,
+            "missing_api": missing_api,
+            "missing_runtime_routes": missing_runtime_routes,
             "template_count": snapshot["template_count"],
             "missing_tables": snapshot["missing_tables"],
+            "counts": counts,
+            "totals": {
+                "spec_routes": len(spec_routes),
+                "runtime_routes": len(app_routes),
+                "needed_routes": len(needed_routes),
+                "needed_api": len(needed_api),
+            },
         }
 
     @app.get("/api/diagnostics")

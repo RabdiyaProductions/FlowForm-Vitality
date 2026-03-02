@@ -8,6 +8,14 @@ ROOT = Path(__file__).resolve().parent.parent
 # No nested zips in the standalone app bundle.
 ALLOWED_ZIPS: set[str] = set()
 
+IGNORED_RUNTIME_PREFIXES = (
+    ".venv/",
+    "__pycache__/",
+    "data/",
+    "logs/",
+    "instance/",
+)
+
 ALLOWED_RUN_SCRIPTS = {
     # Canonical boot (root)
     "setup.bat",
@@ -65,6 +73,9 @@ def find_any_zips() -> list[str]:
     violations: list[str] = []
     for path in ROOT.rglob("*.zip"):
         rp = rel(path)
+        low = rp.lower()
+        if low.startswith(IGNORED_RUNTIME_PREFIXES):
+            continue
         # Allow explicit whitelisted zips in the root (no path separator).
         if path.name in ALLOWED_ZIPS and "/" not in rp:
             continue
@@ -85,9 +96,7 @@ def find_unapproved_run_scripts() -> list[str]:
         low = rp.lower()
 
         # Ignore generated/runtime dirs
-        if low.startswith(".git/") or low.startswith(".venv/"):
-            continue
-        if low.startswith("data/") or low.startswith("logs/"):
+        if low.startswith(".git/") or low.startswith(IGNORED_RUNTIME_PREFIXES):
             continue
         if low.startswith("tests/") or "/tests/" in low:
             continue

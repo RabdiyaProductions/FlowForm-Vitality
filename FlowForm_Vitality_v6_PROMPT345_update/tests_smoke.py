@@ -754,3 +754,88 @@ def test_content_pack_import_rejects_traversal_zip(tmp_path, monkeypatch):
     imported = client.post('/content-packs/import', data={'pack_file': (mem, 'bad.zip')}, content_type='multipart/form-data')
     assert imported.status_code == 302
     assert '/content-packs?error=' in imported.headers['Location']
+
+
+def test_session_start_shows_media_button_for_block_media(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    monkeypatch.setenv('DB_PATH', str(tmp_path / 'block-media.db'))
+    app = create_app(port=5430)
+    client = app.test_client()
+
+    # Upload media first.
+    upload = client.post(
+        '/media/upload',
+        data={'tags': 'block', 'file': (io.BytesIO(b'%PDF-1.4\n%block\n'), 'block.pdf')},
+        content_type='multipart/form-data',
+        follow_redirects=True,
+    )
+    assert upload.status_code == 200
+
+    con = sqlite3.connect(app.config['DB_PATH'])
+    media_id = int(con.execute('SELECT id FROM media_item ORDER BY id DESC LIMIT 1').fetchone()[0])
+
+    # Create plan, then force the first day template block to reference uploaded media.
+    created = client.post('/api/plan/create', json={
+        'goal': 'hybrid',
+        'days_per_week': 3,
+        'minutes_per_session': 45,
+        'disciplines': ['strength', 'cardio', 'mobility', 'recovery', 'conditioning'],
+    })
+    assert created.status_code == 200
+
+    plan_day_id, template_id = con.execute(
+        'SELECT id, template_id FROM plan_day ORDER BY id LIMIT 1'
+    ).fetchone()
+    blocks_json = json.dumps({'blocks': [{'name': 'Block One', 'minutes': 12, 'media_id': media_id}]})
+    con.execute('UPDATE session_template SET json_blocks = ? WHERE id = ?', (blocks_json, int(template_id)))
+    con.commit()
+    con.close()
+
+    page = client.get(f'/session/start/{int(plan_day_id)}')
+    assert page.status_code == 200
+    assert b'Open media' in page.data
+    assert f'"media_id": {media_id}'.encode('utf-8') in page.data
+
+
+def test_template_edit_post_updates_json_blocks(tmp_path, monkeypatch):
+    monkeypatch.setenv('DB_PATH', str(tmp_path / 'template-edit.db'))
+    app = create_app(port=5431)
+    client = app.test_client()
+
+    # Seed one media row used in block mapping.
+    up = client.post(
+        '/media/upload',
+        data={'tags': 'edit', 'file': (io.BytesIO(b'%PDF-1.4\n%edit\n'), 'edit.pdf')},
+        content_type='multipart/form-data',
+        follow_redirects=True,
+    )
+    assert up.status_code == 200
+
+    con = sqlite3.connect(app.config['DB_PATH'])
+    template_id = int(con.execute('SELECT id FROM session_template ORDER BY id LIMIT 1').fetchone()[0])
+    media_id = int(con.execute('SELECT id FROM media_item ORDER BY id DESC LIMIT 1').fetchone()[0])
+    con.close()
+
+    edited = client.post(
+        f'/templates/{template_id}/edit',
+        data={
+            'name': 'Edited Template Name',
+            'discipline': 'strength',
+            'duration_minutes': '40',
+            'level': 'intermediate',
+            'block_name': ['Warmup', 'Main'],
+            'block_minutes': ['10', '30'],
+            'block_media_id': ['', str(media_id)],
+        },
+        follow_redirects=False,
+    )
+    assert edited.status_code in (302, 303)
+
+    con = sqlite3.connect(app.config['DB_PATH'])
+    row = con.execute('SELECT name, json_blocks FROM session_template WHERE id = ?', (template_id,)).fetchone()
+    con.close()
+    assert row[0] == 'Edited Template Name'
+    blocks_payload = json.loads(row[1])
+    assert blocks_payload['blocks'][1]['media_id'] == media_id
+    assert blocks_payload['blocks'][0]['name'] == 'Warmup'

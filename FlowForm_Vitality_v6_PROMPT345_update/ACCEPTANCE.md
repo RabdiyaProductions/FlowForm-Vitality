@@ -205,3 +205,18 @@
 - template count increases after importing a synthetic/new template,
 - traversal ZIPs are rejected,
 - player page shows the **Open media** button for imported block media.
+
+
+## Journey 15 — Template editor with block media attachments
+**Steps**
+1. Open `/templates` and click **Edit** for a template.
+2. Update name/discipline/duration/level.
+3. In block rows, set block name/minutes and choose media from dropdown for at least one block.
+4. Click **Add block** and save.
+5. Start a session using that template from `/session/start/<plan_day_id>`.
+
+**Accept if**
+- template saves with updated `json_blocks` shape: `{ "blocks": [{"name", "minutes", "media_id"}, ...] }`,
+- if total block minutes are outside 30–75, save succeeds and warning is shown,
+- session player shows **Open media** only on blocks with a `media_id`,
+- clicking **Open media** opens `/media/<id>` for that block.

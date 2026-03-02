@@ -1,3 +1,8 @@
+import io
+import json
+import sqlite3
+import zipfile
+
 from app_server import create_app
 
 
@@ -672,3 +677,80 @@ def test_media_upload_and_attach_to_manual_session(tmp_path, monkeypatch):
     media_path = Path(app.root_path) / 'instance' / 'media' / stored_name
     if media_path.exists():
         media_path.unlink()
+
+
+def test_content_packs_page_and_export_zip(tmp_path, monkeypatch):
+    monkeypatch.setenv('DB_PATH', str(tmp_path / 'content-pack.db'))
+    app = create_app(port=5415)
+    client = app.test_client()
+
+    page = client.get('/content-packs')
+    assert page.status_code == 200
+    assert b'Content Packs' in page.data
+
+    db = sqlite3.connect(app.config['DB_PATH'])
+    template_id = db.execute('SELECT id FROM session_template ORDER BY id LIMIT 1').fetchone()[0]
+    db.close()
+
+    exported = client.post('/content-packs/export', data={'template_id': str(template_id)})
+    assert exported.status_code == 200
+    assert exported.mimetype == 'application/zip'
+
+    archive = zipfile.ZipFile(io.BytesIO(exported.data))
+    assert 'content_pack.json' in archive.namelist()
+    payload = json.loads(archive.read('content_pack.json').decode('utf-8'))
+    assert payload['templates']
+
+
+def test_content_pack_import_increases_templates(tmp_path, monkeypatch):
+    monkeypatch.setenv('DB_PATH', str(tmp_path / 'content-import.db'))
+    app = create_app(port=5416)
+    client = app.test_client()
+
+    db = sqlite3.connect(app.config['DB_PATH'])
+    before = db.execute('SELECT COUNT(*) FROM session_template').fetchone()[0]
+    db.close()
+
+    pack_json = {
+        'templates': [
+            {
+                'id': 9999,
+                'name': 'Imported Mobility Block',
+                'discipline': 'mobility',
+                'duration_minutes': 22,
+                'level': 'beginner',
+                'json_blocks': {'blocks': [{'name': 'Flow', 'minutes': 22}]},
+            }
+        ],
+        'media': [],
+        'metadata': {'app_version': 'test', 'exported_at': '2026-03-01T00:00:00+00:00'},
+    }
+
+    mem = io.BytesIO()
+    with zipfile.ZipFile(mem, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr('content_pack.json', json.dumps(pack_json))
+    mem.seek(0)
+
+    imported = client.post('/content-packs/import', data={'pack_file': (mem, 'pack.zip')}, content_type='multipart/form-data')
+    assert imported.status_code == 302
+
+    db = sqlite3.connect(app.config['DB_PATH'])
+    after = db.execute('SELECT COUNT(*) FROM session_template').fetchone()[0]
+    db.close()
+    assert after == before + 1
+
+
+def test_content_pack_import_rejects_traversal_zip(tmp_path, monkeypatch):
+    monkeypatch.setenv('DB_PATH', str(tmp_path / 'content-traversal.db'))
+    app = create_app(port=5417)
+    client = app.test_client()
+
+    mem = io.BytesIO()
+    with zipfile.ZipFile(mem, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr('../evil.txt', 'nope')
+        zf.writestr('content_pack.json', json.dumps({'templates': [], 'media': [], 'metadata': {}}))
+    mem.seek(0)
+
+    imported = client.post('/content-packs/import', data={'pack_file': (mem, 'bad.zip')}, content_type='multipart/form-data')
+    assert imported.status_code == 302
+    assert '/content-packs?error=' in imported.headers['Location']

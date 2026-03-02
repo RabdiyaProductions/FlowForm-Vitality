@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 import os
@@ -64,6 +65,30 @@ def _media_category(mime_type: str) -> str:
     if mt == "application/pdf":
         return "pdf"
     return "file"
+
+
+def _compute_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as fh:
+        while True:
+            chunk = fh.read(1024 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _safe_zip_member(name: str) -> bool:
+    member = Path(name)
+    if member.is_absolute():
+        return False
+    parts = member.parts
+    return not any(part in {"", ".", ".."} for part in parts)
+
+
+def _ext_for_name(name: str) -> str:
+    ext = Path(name or "").suffix.lower()
+    return ext if ext else ""
 
 DISCIPLINES = ["strength", "cardio", "mobility", "recovery", "conditioning", "endurance"]
 GOAL_DEFAULTS = {
@@ -302,9 +327,26 @@ def apply_schema_migrations(connection: sqlite3.Connection) -> None:
             stored_name TEXT NOT NULL,
             mime_type TEXT NOT NULL,
             size_bytes INTEGER NOT NULL,
+            sha256 TEXT,
             tags TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+        """
+    )
+    ensure_column(connection, "media_item", "sha256", "sha256 TEXT")
+
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS content_pack_event (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            action TEXT NOT NULL,
+            filename TEXT NOT NULL,
+            templates_count INTEGER NOT NULL,
+            media_count INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
             FOREIGN KEY(user_id) REFERENCES users(id)
         )
         """
@@ -2184,6 +2226,7 @@ def create_app(port: int | None = None) -> Flask:
                 pass
             return render_template("media.html", items=[], error="File too large."), 400
         mime_type = _guess_mime(original)
+        sha256 = _compute_sha256(target)
 
         connection = sqlite3.connect(db_path)
         connection.row_factory = sqlite3.Row
@@ -2191,10 +2234,10 @@ def create_app(port: int | None = None) -> Flask:
         now = utc_now_iso()
         connection.execute(
             """
-            INSERT INTO media_item(user_id, original_name, stored_name, mime_type, size_bytes, tags, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO media_item(user_id, original_name, stored_name, mime_type, size_bytes, sha256, tags, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (user_id, original, stored, mime_type, int(size_bytes), tags, now, now),
+            (user_id, original, stored, mime_type, int(size_bytes), sha256, tags, now, now),
         )
         connection.commit()
         connection.close()
@@ -2537,6 +2580,342 @@ def create_app(port: int | None = None) -> Flask:
         connection.close()
         return render_template("templates_catalog.html", templates=[dict(r) for r in rows], limited=limited)
 
+
+    @app.get("/content-packs")
+    @require_login
+    def content_packs_page():
+        connection = sqlite3.connect(db_path)
+        connection.row_factory = sqlite3.Row
+        user_id = current_user_id(connection)
+        templates = connection.execute(
+            """
+            SELECT id, name, discipline, duration_minutes, level
+            FROM session_template
+            ORDER BY discipline ASC, name ASC
+            """
+        ).fetchall()
+        events = connection.execute(
+            """
+            SELECT id, action, filename, templates_count, media_count, created_at
+            FROM content_pack_event
+            WHERE user_id = ?
+            ORDER BY id DESC
+            LIMIT 25
+            """,
+            (user_id,),
+        ).fetchall()
+        connection.close()
+        return render_template(
+            "content_packs.html",
+            templates=[dict(row) for row in templates],
+            events=[dict(row) for row in events],
+            error=request.args.get("error"),
+            message=request.args.get("message"),
+        )
+
+    @app.post("/content-packs/export")
+    @require_login
+    def content_packs_export():
+        template_ids = [int(v) for v in request.form.getlist("template_id") if str(v).isdigit()]
+        if not template_ids:
+            return redirect(url_for("content_packs_page", error="Select at least one template to export."))
+
+        placeholders = ",".join("?" for _ in template_ids)
+        connection = sqlite3.connect(db_path)
+        connection.row_factory = sqlite3.Row
+        user_id = current_user_id(connection)
+
+        template_rows = connection.execute(
+            f"""
+            SELECT id, name, discipline, duration_minutes, level, json_blocks
+            FROM session_template
+            WHERE id IN ({placeholders})
+            ORDER BY id ASC
+            """,
+            tuple(template_ids),
+        ).fetchall()
+
+        media_ids: set[int] = set()
+        for row in template_rows:
+            for block in blocks_from_json(str(row["json_blocks"])):
+                media_id = block.get("media_id")
+                if isinstance(media_id, int):
+                    media_ids.add(media_id)
+
+        media_rows = []
+        media_by_id: dict[int, sqlite3.Row] = {}
+        if media_ids:
+            media_placeholders = ",".join("?" for _ in media_ids)
+            media_rows = connection.execute(
+                f"""
+                SELECT id, original_name, stored_name, mime_type, size_bytes, tags, sha256
+                FROM media_item
+                WHERE id IN ({media_placeholders}) AND user_id = ?
+                """,
+                (*sorted(media_ids), user_id),
+            ).fetchall()
+            media_by_id = {int(row["id"]): row for row in media_rows}
+
+        payload = {
+            "templates": [],
+            "media": [],
+            "metadata": {
+                "app_version": app.config["VERSION"],
+                "exported_at": utc_now_iso(),
+            },
+        }
+
+        for row in template_rows:
+            blocks_payload = json.loads(str(row["json_blocks"]))
+            blocks = blocks_payload.get("blocks") if isinstance(blocks_payload, dict) else []
+            if not isinstance(blocks, list):
+                blocks = []
+            normalized_blocks = []
+            for block in blocks:
+                if not isinstance(block, dict):
+                    continue
+                mapped = dict(block)
+                media_id = mapped.get("media_id")
+                if isinstance(media_id, int) and media_id in media_by_id:
+                    mapped["media_sha256"] = str(media_by_id[media_id]["sha256"] or "")
+                normalized_blocks.append(mapped)
+            payload["templates"].append(
+                {
+                    "id": int(row["id"]),
+                    "name": row["name"],
+                    "discipline": row["discipline"],
+                    "duration_minutes": int(row["duration_minutes"]),
+                    "level": row["level"],
+                    "json_blocks": {"blocks": normalized_blocks},
+                }
+            )
+
+        media_archive_map: dict[int, str] = {}
+        for media_id in sorted(media_ids):
+            row = media_by_id.get(media_id)
+            if row is None:
+                continue
+            sha256 = str(row["sha256"] or "").strip()
+            stored_name = str(row["stored_name"])
+            media_path = (MEDIA_DIR / stored_name).resolve()
+            if not media_path.exists() or (MEDIA_DIR not in media_path.parents and media_path.parent != MEDIA_DIR):
+                continue
+            if not sha256:
+                sha256 = _compute_sha256(media_path)
+                connection.execute("UPDATE media_item SET sha256 = ?, updated_at = ? WHERE id = ?", (sha256, utc_now_iso(), media_id))
+
+            ext = _ext_for_name(str(row["original_name"])) or _ext_for_name(stored_name)
+            arc_name = f"media/{sha256}{ext}"
+            media_archive_map[media_id] = arc_name
+            payload["media"].append(
+                {
+                    "source_media_id": media_id,
+                    "sha256": sha256,
+                    "original_name": str(row["original_name"]),
+                    "stored_filename": stored_name,
+                    "mime_type": str(row["mime_type"]),
+                    "size_bytes": int(row["size_bytes"]),
+                    "tags": str(row["tags"] or ""),
+                }
+            )
+
+        now = utc_now_iso()
+        export_name = f"content-pack-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.zip"
+        connection.execute(
+            """
+            INSERT INTO content_pack_event(user_id, action, filename, templates_count, media_count, created_at)
+            VALUES (?, 'export', ?, ?, ?, ?)
+            """,
+            (user_id, export_name, len(template_rows), len(payload["media"]), now),
+        )
+        connection.commit()
+        connection.close()
+
+        with tempfile.NamedTemporaryFile(prefix="flowform-pack-", suffix=".zip", delete=False) as tmp:
+            tmp_path = Path(tmp.name)
+
+        with zipfile.ZipFile(tmp_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("content_pack.json", json.dumps(payload, indent=2))
+            for media_id, arc_name in media_archive_map.items():
+                row = media_by_id.get(media_id)
+                if row is None:
+                    continue
+                media_path = (MEDIA_DIR / str(row["stored_name"])).resolve()
+                if media_path.exists() and (MEDIA_DIR in media_path.parents or media_path.parent == MEDIA_DIR):
+                    zf.write(media_path, arcname=arc_name)
+
+        return send_file(
+            tmp_path,
+            mimetype="application/zip",
+            as_attachment=True,
+            download_name=export_name,
+            max_age=0,
+        )
+
+    @app.post("/content-packs/import")
+    @require_login
+    def content_packs_import():
+        upload = request.files.get("pack_file")
+        if not upload or not upload.filename:
+            return redirect(url_for("content_packs_page", error="Choose a ZIP file to import."))
+
+        raw_bytes = upload.read()
+        if not raw_bytes:
+            return redirect(url_for("content_packs_page", error="Uploaded ZIP is empty."))
+
+        try:
+            zf = zipfile.ZipFile(io.BytesIO(raw_bytes))
+        except zipfile.BadZipFile:
+            return redirect(url_for("content_packs_page", error="Invalid ZIP file."))
+
+        names = zf.namelist()
+        for name in names:
+            if not _safe_zip_member(name):
+                return redirect(url_for("content_packs_page", error="ZIP contains invalid paths."))
+        if "content_pack.json" not in names:
+            return redirect(url_for("content_packs_page", error="content_pack.json is required."))
+
+        try:
+            manifest = json.loads(zf.read("content_pack.json").decode("utf-8"))
+        except Exception:
+            return redirect(url_for("content_packs_page", error="content_pack.json is invalid."))
+
+        templates = manifest.get("templates") if isinstance(manifest, dict) else None
+        media_items = manifest.get("media") if isinstance(manifest, dict) else None
+        if not isinstance(templates, list) or not isinstance(media_items, list):
+            return redirect(url_for("content_packs_page", error="content_pack.json missing templates/media."))
+
+        connection = sqlite3.connect(db_path)
+        connection.row_factory = sqlite3.Row
+        user_id = current_user_id(connection)
+        now = utc_now_iso()
+        sha_to_media_id: dict[str, int] = {}
+        legacy_media_id_to_sha: dict[int, str] = {}
+        imported_media_count = 0
+
+        for media in media_items:
+            if not isinstance(media, dict):
+                connection.close()
+                return redirect(url_for("content_packs_page", error="Invalid media entry in content_pack.json."))
+            sha256 = str(media.get("sha256", "")).strip().lower()
+            source_media_id = media.get("source_media_id")
+            if isinstance(source_media_id, int):
+                legacy_media_id_to_sha[source_media_id] = sha256
+            elif isinstance(source_media_id, str) and source_media_id.isdigit():
+                legacy_media_id_to_sha[int(source_media_id)] = sha256
+            original_name = secure_filename(str(media.get("original_name", "media.bin")))
+            stored_filename = secure_filename(str(media.get("stored_filename", "")))
+            mime_type = str(media.get("mime_type", "")).strip().lower()
+            if not sha256 or len(sha256) != 64:
+                connection.close()
+                return redirect(url_for("content_packs_page", error="Invalid media sha256 in pack."))
+            if _media_category(mime_type) not in {"video", "audio", "image", "pdf"}:
+                connection.close()
+                return redirect(url_for("content_packs_page", error="Media type not allowed in pack."))
+
+            existing = connection.execute(
+                "SELECT id FROM media_item WHERE sha256 = ? AND user_id = ? ORDER BY id ASC LIMIT 1",
+                (sha256, user_id),
+            ).fetchone()
+            if existing:
+                sha_to_media_id[sha256] = int(existing[0])
+                continue
+
+            ext = _ext_for_name(original_name) or _ext_for_name(stored_filename)
+            member_path = f"media/{sha256}{ext}"
+            if member_path not in names:
+                connection.close()
+                return redirect(url_for("content_packs_page", error=f"Missing media file for {sha256}."))
+            media_bytes = zf.read(member_path)
+            digest = hashlib.sha256(media_bytes).hexdigest()
+            if digest != sha256:
+                connection.close()
+                return redirect(url_for("content_packs_page", error="Media checksum mismatch in pack."))
+
+            stored_name = f"{uuid.uuid4().hex}{ext}"
+            target = (MEDIA_DIR / stored_name).resolve()
+            if MEDIA_DIR not in target.parents and target.parent != MEDIA_DIR:
+                connection.close()
+                return redirect(url_for("content_packs_page", error="Media target path rejected."))
+            target.write_bytes(media_bytes)
+            size_bytes = int(len(media_bytes))
+
+            cursor = connection.execute(
+                """
+                INSERT INTO media_item(user_id, original_name, stored_name, mime_type, size_bytes, sha256, tags, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    user_id,
+                    original_name or f"{sha256}{ext}",
+                    stored_name,
+                    mime_type or _guess_mime(original_name or stored_name),
+                    size_bytes,
+                    sha256,
+                    str(media.get("tags") or ""),
+                    now,
+                    now,
+                ),
+            )
+            sha_to_media_id[sha256] = int(cursor.lastrowid)
+            imported_media_count += 1
+
+        imported_templates_count = 0
+        for template in templates:
+            if not isinstance(template, dict):
+                continue
+            blocks_payload = template.get("json_blocks")
+            if isinstance(blocks_payload, str):
+                try:
+                    blocks_payload = json.loads(blocks_payload)
+                except Exception:
+                    blocks_payload = {"blocks": []}
+            if not isinstance(blocks_payload, dict):
+                blocks_payload = {"blocks": []}
+            blocks = blocks_payload.get("blocks") if isinstance(blocks_payload.get("blocks"), list) else []
+
+            remapped_blocks = []
+            for block in blocks:
+                if not isinstance(block, dict):
+                    continue
+                mapped = dict(block)
+                media_sha = str(mapped.get("media_sha256") or "").strip().lower()
+                media_id = mapped.get("media_id")
+                if not media_sha and isinstance(media_id, int):
+                    media_sha = legacy_media_id_to_sha.get(media_id, "")
+                if media_sha and media_sha in sha_to_media_id:
+                    mapped["media_id"] = sha_to_media_id[media_sha]
+                remapped_blocks.append(mapped)
+
+            template_blocks_json = json.dumps({"blocks": remapped_blocks})
+            connection.execute(
+                """
+                INSERT INTO session_template(name, discipline, duration_minutes, level, json_blocks, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    str(template.get("name") or "Imported Template"),
+                    str(template.get("discipline") or "strength"),
+                    int(template.get("duration_minutes") or 30),
+                    str(template.get("level") or "all_levels"),
+                    template_blocks_json,
+                    now,
+                    now,
+                ),
+            )
+            imported_templates_count += 1
+
+        source_name = secure_filename(upload.filename) or "content-pack.zip"
+        connection.execute(
+            """
+            INSERT INTO content_pack_event(user_id, action, filename, templates_count, media_count, created_at)
+            VALUES (?, 'import', ?, ?, ?, ?)
+            """,
+            (user_id, source_name, imported_templates_count, imported_media_count, now),
+        )
+        connection.commit()
+        connection.close()
+        return redirect(url_for("content_packs_page", message="Content pack imported."))
 
     @app.get("/analytics")
     @require_login
@@ -3108,6 +3487,9 @@ def create_app(port: int | None = None) -> Flask:
             {"path": "/exports", "methods": ["GET"], "description": "Exports page"},
             {"path": "/restore", "methods": ["GET"], "description": "Backup restore page"},
             {"path": "/templates", "methods": ["GET"], "description": "Session template catalog"},
+            {"path": "/content-packs", "methods": ["GET"], "description": "Content pack import/export hub"},
+            {"path": "/content-packs/export", "methods": ["POST"], "description": "Export selected templates and referenced media"},
+            {"path": "/content-packs/import", "methods": ["POST"], "description": "Import content pack ZIP"},
             {"path": "/api/recovery/checkin", "methods": ["POST"], "description": "Persist daily recovery check-in"},
             {"path": "/health", "methods": ["GET"], "description": "Operational health endpoint"},
             {"path": "/version", "methods": ["GET"], "description": "Build/version metadata"},
@@ -3175,6 +3557,9 @@ def create_app(port: int | None = None) -> Flask:
             '/exports',
             '/restore',
             '/templates',
+            '/content-packs',
+            '/content-packs/export',
+            '/content-packs/import',
             '/api/recovery/checkin',
             '/api/export/plan',
             '/api/export/json',

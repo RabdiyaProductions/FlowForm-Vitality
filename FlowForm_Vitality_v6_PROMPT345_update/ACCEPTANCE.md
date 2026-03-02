@@ -189,3 +189,19 @@
    - message appears in the conversation
    - coach reply appears and includes “not a healthcare professional” (or similar disclaimer)
 4) Optional (LLM enabled): set `OPENAI_API_KEY` in `.env`, restart, send a prompt, and confirm it still replies quickly (<10s).
+
+
+## Journey 14 — Content pack export/import roundtrip
+**Steps**
+1. Open `/media` and upload a supported file.
+2. Attach that media to a template block (`json_blocks[*].media_id`).
+3. Open `/content-packs` and export selected template(s).
+4. Import the exported ZIP from `/content-packs`.
+5. Start a session that uses the imported template.
+
+**Accept if**
+- export downloads a ZIP containing `content_pack.json`,
+- import succeeds without duplicating existing media with same `sha256`,
+- template count increases after importing a synthetic/new template,
+- traversal ZIPs are rejected,
+- player page shows the **Open media** button for imported block media.

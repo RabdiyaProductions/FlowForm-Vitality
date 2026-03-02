@@ -5,6 +5,44 @@
   <p class="muted">Founder-grade insight with lightweight metrics from completed sessions + recovery check-ins.</p>
 </div>
 
+
+<div class="card">
+  <h2>Download CSV exports</h2>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <a class="btn" href="/api/export/csv/completions">Completions CSV</a>
+    <a class="btn" href="/api/export/csv/recovery">Recovery CSV</a>
+    <a class="btn" href="/api/export/csv/weekly-load">Weekly load CSV</a>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Weekly load</h2>
+  <p><strong>{{ analytics.weekly_load.minutes }}</strong> min · intensity load <strong>{{ analytics.weekly_load.intensity_load }}</strong></p>
+</div>
+
+<div class="card">
+  <h2>RPE trend + average (14d)</h2>
+  <p><strong>{{ analytics.rpe_average_14 if analytics.rpe_average_14 is not none else 'N/A' }}</strong></p>
+  <p class="muted">Trend points: {{ analytics.rpe_trend|length }}</p>
+</div>
+
+<div class="card">
+  <h2>Readiness vs completion correlation</h2>
+  <p><strong>{{ analytics.readiness_completion_correlation|replace('_',' ')|title }}</strong></p>
+  <p class="muted">Based on last {{ analytics.readiness_completion_points|length }} recovery days.</p>
+</div>
+
+<div class="card">
+  <h2>Domain balance (30d minutes)</h2>
+  <ul>
+    {% for k,v in analytics.domain_balance.items() %}
+    <li>{{ k|title }}: <strong>{{ v }}</strong> min</li>
+    {% else %}
+    <li>No completed sessions yet.</li>
+    {% endfor %}
+  </ul>
+</div>
+
 <div class="card">
   <h2>Streak</h2>
   <p><strong>{{ analytics.streak }}</strong> consecutive day(s)</p>

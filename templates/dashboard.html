@@ -27,6 +27,19 @@
 </div>
 
 <div class="card">
+  <h3 style="margin-top:0;">Programme adherence</h3>
+  <p><strong>Planned sessions ({{ view }}):</strong> {{ planned_sessions }}</p>
+  <p><strong>Done sessions ({{ view }}):</strong> {{ done_plan_sessions }}</p>
+  <p><strong>Planned minutes ({{ view }}):</strong> {{ planned_minutes }}</p>
+  <p><strong>Completion rate:</strong> {{ completion_rate }}%</p>
+  {% if today_plan_day_id %}
+    <a class="btn" href="/session/start/{{ today_plan_day_id }}">Start today</a>
+  {% else %}
+    <a class="btn" href="/plan/current">Open current plan</a>
+  {% endif %}
+</div>
+
+<div class="card">
   <h3 style="margin-top:0;">Quick totals</h3>
   <p><strong>All-time sessions completed:</strong> {{ total_sessions }}</p>
   <p><strong>Week-to-date minutes:</strong> {{ weekly_minutes }}</p>
@@ -68,7 +81,7 @@
         <td>{{ 'Completed' if s['completed_at'] else 'Pending' }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="6">No sessions yet.</td></tr>
+      <tr><td colspan="6">No sessions yet. <a href="/sessions/new">Start one</a>.</td></tr>
       {% endfor %}
     </tbody>
   </table>

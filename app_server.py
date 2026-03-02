@@ -628,7 +628,7 @@ def preferred_disciplines(payload: dict) -> list[str]:
 def fetch_template_pool(connection: sqlite3.Connection, ordered_disciplines: list[str], target_minutes: int, limit_templates: int | None = None) -> list[dict]:
     rows = connection.execute(
         """
-        SELECT id, name, discipline, duration_minutes, level
+        SELECT id, name, discipline, duration_minutes, level, json_blocks
         FROM session_template
         ORDER BY id ASC
         """
@@ -1281,7 +1281,7 @@ def export_snapshot(connection: sqlite3.Connection, user_id: int) -> dict:
         dict(row)
         for row in connection.execute(
             """
-            SELECT id, name, discipline, duration_minutes, level, json_blocks, created_at, updated_at
+            SELECT id, name, discipline, duration_minutes, level, json_blocks, json_blocks, created_at, updated_at
             FROM session_template
             ORDER BY id ASC
             """
@@ -2900,14 +2900,43 @@ def create_app(port: int | None = None) -> Flask:
             limited = True
 
         query = f"""
-            SELECT id, name, discipline, duration_minutes, level
+            SELECT id, name, discipline, duration_minutes, level, json_blocks
             FROM session_template
             ORDER BY discipline ASC, duration_minutes ASC, id ASC
             {limit_clause}
         """
         rows = connection.execute(query).fetchall()
         connection.close()
-        return render_template("templates_catalog.html", templates=[dict(r) for r in rows], limited=limited)
+        templates_payload = []
+        for row in rows:
+            item = dict(row)
+            item["blocks"] = blocks_from_json(str(item.get("json_blocks") or ""))
+            templates_payload.append(item)
+        return render_template("templates_catalog.html", templates=templates_payload, limited=limited, clip_options=["", "idle", "warmup", "squat", "hinge", "pushup", "plank", "stretch", "breathe"])
+
+    @app.post("/templates/<int:template_id>/avatar-clips")
+    @require_login
+    def template_avatar_clips_save(template_id: int):
+        connection = sqlite3.connect(db_path)
+        connection.row_factory = sqlite3.Row
+        row = connection.execute("SELECT json_blocks FROM session_template WHERE id = ?", (template_id,)).fetchone()
+        if row is None:
+            connection.close()
+            return redirect(url_for("templates_catalog"))
+
+        blocks = blocks_from_json(str(row["json_blocks"] or ""))
+        for idx, block in enumerate(blocks):
+            clip = (request.form.get(f"avatar_clip_{idx}") or "").strip().lower()
+            block["avatar_clip"] = clip
+
+        now = utc_now_iso()
+        connection.execute(
+            "UPDATE session_template SET json_blocks = ?, updated_at = ? WHERE id = ?",
+            (json.dumps({"blocks": blocks}), now, template_id),
+        )
+        connection.commit()
+        connection.close()
+        return redirect(url_for("templates_catalog"))
 
     @app.get("/templates/<int:template_id>/edit")
     @require_login
@@ -3044,7 +3073,7 @@ def create_app(port: int | None = None) -> Flask:
         user_id = current_user_id(connection)
         templates = connection.execute(
             """
-            SELECT id, name, discipline, duration_minutes, level
+            SELECT id, name, discipline, duration_minutes, level, json_blocks
             FROM session_template
             ORDER BY discipline ASC, name ASC
             """
@@ -3082,7 +3111,7 @@ def create_app(port: int | None = None) -> Flask:
 
         template_rows = connection.execute(
             f"""
-            SELECT id, name, discipline, duration_minutes, level, json_blocks
+            SELECT id, name, discipline, duration_minutes, level, json_blocks, json_blocks
             FROM session_template
             WHERE id IN ({placeholders})
             ORDER BY id ASC

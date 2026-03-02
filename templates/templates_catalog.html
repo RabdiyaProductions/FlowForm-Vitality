@@ -6,7 +6,7 @@
 </div>
 <div class="card">
   <table>
-    <thead><tr><th>Name</th><th>Discipline</th><th>Minutes</th><th>Level</th></tr></thead>
+    <thead><tr><th>Name</th><th>Discipline</th><th>Minutes</th><th>Level</th><th>Avatar clips</th></tr></thead>
     <tbody>
       {% for t in templates %}
       <tr>
@@ -14,9 +14,22 @@
         <td>{{ t.discipline }}</td>
         <td>{{ t.duration_minutes }}</td>
         <td>{{ t.level }}</td>
+        <td>
+          <form method="post" action="/templates/{{ t.id }}/avatar-clips">
+            {% for b in t.blocks %}
+              <label style="font-size:12px;">{{ b.name }}</label>
+              <select name="avatar_clip_{{ loop.index0 }}">
+                {% for c in clip_options %}
+                  <option value="{{ c }}" {% if (b.avatar_clip or '') == c %}selected{% endif %}>{{ c or 'auto' }}</option>
+                {% endfor %}
+              </select>
+            {% endfor %}
+            <button class="btn" type="submit">Save clips</button>
+          </form>
+        </td>
       </tr>
       {% else %}
-      <tr><td colspan="4">No templates found.</td></tr>
+      <tr><td colspan="5">No templates found.</td></tr>
       {% endfor %}
     </tbody>
   </table>

@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card" {% if embed %}style="padding:10px;margin:0;"{% endif %}>
+  {% if not embed %}<h1>3D Coach Preview</h1>{% endif %}
+  <p class="muted">Lightweight local 3D avatar preview with graceful fallback.</p>
+  <label>Pose</label>
+  <select id="poseSelect">
+    {% for p in ['idle','warmup','squat','hinge','pushup','plank','stretch','breathe'] %}
+      <option value="{{ p }}" {% if selected_pose == p %}selected{% endif %}>{{ p }}</option>
+    {% endfor %}
+  </select>
+  <p id="avatarStatus" class="muted">Loading avatar…</p>
+  <canvas id="avatarCanvas" style="width:100%;height:{% if embed %}240px{% else %}420px{% endif %};border:1px solid #21304f;border-radius:10px;background:#0d1628;"></canvas>
+  <div id="avatarFallback" style="display:none;margin-top:10px;padding:10px;border:1px solid #21304f;border-radius:10px;">
+    <strong>2D fallback active.</strong> 3D/WebGL is unavailable in this browser.
+  </div>
+</div>
+<script src="/assets/avatars/three.min.js"></script>
+<script src="/assets/avatars/OrbitControls.js"></script>
+<script src="/assets/avatars/GLTFLoader.js"></script>
+<script src="/assets/avatars/avatar_viewer.js"></script>
+{% endblock %}

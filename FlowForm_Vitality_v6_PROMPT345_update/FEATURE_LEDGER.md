@@ -318,3 +318,34 @@ Guardrails:
 - Always includes a non-medical disclaimer.
 - Escalates to professional help language on red-flag keywords.
 - Uses OpenAI only if `OPENAI_API_KEY` is set; otherwise rules-engine fallback.
+
+
+### 8) Content packs (portable template + media ZIP)
+#### UI: `GET /content-packs`
+Behavior:
+- checklist of templates for export
+- ZIP upload form for import
+- table of recent import/export events from `content_pack_event`
+
+#### Export: `POST /content-packs/export`
+Behavior:
+- accepts multiple `template_id` values
+- writes `content_pack.json` with template fields + media manifest + metadata
+- includes only media referenced by template block `media_id`
+- bundles referenced files as `media/<sha256>.<ext>`
+
+#### Import: `POST /content-packs/import`
+Behavior:
+- validates ZIP member paths (blocks traversal)
+- requires `content_pack.json`
+- allows only video/audio/image/pdf media categories
+- de-dupes media by `sha256` before writing files
+- remaps template blocks from `media_sha256` to local `media_id`
+- logs `content_pack_event` action `import`
+
+Exact click steps:
+1. Open `/media` and upload a media file.
+2. Create/choose a template that has a block with `media_id` attached.
+3. Open `/content-packs`, check one or more templates, click **Export ZIP**.
+4. Return to `/content-packs`, choose exported ZIP, click **Import ZIP**.
+5. Open `/session/start/<plan_day_id>` for an imported template and verify **Open media** appears for the block.

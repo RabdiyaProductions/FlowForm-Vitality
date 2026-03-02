@@ -10,4 +10,14 @@
   <p>Notes: {{ completion['notes'] or 'None' }}</p>
   <a class="btn" href="/plan/current">Back to Current Plan</a>
 </div>
+{% if details and details.get('substitutions') %}
+<div class="card">
+  <h3>Substitutions</h3>
+  <ul>
+    {% for item in details.get('substitutions') %}
+      {% if item.substitute %}<li><strong>{{ item.name }}</strong>: {{ item.substitute }}</li>{% endif %}
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
 {% endblock %}

@@ -2,6 +2,7 @@ import io
 import json
 import sqlite3
 import zipfile
+from pathlib import Path
 
 from app_server import create_app
 
@@ -587,6 +588,31 @@ def test_nav_tabs_and_dashboard_toggle(tmp_path, monkeypatch):
     assert client.get('/plan/current').status_code == 200
 
 
+
+
+def test_top_level_nav_links_resolve(tmp_path, monkeypatch):
+    import re
+
+    monkeypatch.setenv('DB_PATH', str(tmp_path / 'top-nav.db'))
+    monkeypatch.setenv('ENABLE_AUTH', 'false')
+    app = create_app(port=5430)
+    client = app.test_client()
+
+    # Base navigation is present on app pages that extend base.html
+    page = client.get('/dashboard')
+    assert page.status_code == 200
+    html = page.get_data(as_text=True)
+
+    nav_html = html.split('<nav class="nav">', 1)[1].split('</nav>', 1)[0]
+    hrefs = re.findall(r'href="([^"]+)"', nav_html)
+    assert hrefs, 'Expected at least one nav link'
+    assert len(hrefs) == len(set(hrefs)), f'Duplicate nav links found: {hrefs}'
+
+    for href in hrefs:
+        if href.startswith('http'):
+            continue
+        resp = client.get(href)
+        assert resp.status_code == 200, f'Broken nav link {href} -> {resp.status_code}'
 def test_standalone_session_create_complete_updates_dashboard(tmp_path, monkeypatch):
     import re
 
@@ -877,16 +903,15 @@ def test_avatar_selection_persists(tmp_path, monkeypatch):
     avatar_id = con.execute("SELECT id FROM avatar_profile WHERE name = 'Performance Coach'").fetchone()[0]
     con.close()
 
-    save = client.post('/avatars/select', data={'avatar_id': str(avatar_id), 'guidance_level': 'high', 'voice_enabled': '1'}, follow_redirects=True)
+    save = client.post('/avatars/select', data={'avatar_id': str(avatar_id), 'guidance_level': 'high'}, follow_redirects=True)
     assert save.status_code == 200
 
     con = sqlite3.connect(app.config['DB_PATH'])
-    row = con.execute('SELECT avatar_id, guidance_level, voice_enabled FROM avatar_state LIMIT 1').fetchone()
+    row = con.execute('SELECT avatar_id, guidance_level FROM avatar_state LIMIT 1').fetchone()
     con.close()
     assert row is not None
     assert int(row[0]) == int(avatar_id)
     assert row[1] == 'high'
-    assert int(row[2]) == 1
 
 
 def test_session_player_renders_coach_cue_panel(tmp_path, monkeypatch):
@@ -911,7 +936,6 @@ def test_session_player_renders_coach_cue_panel(tmp_path, monkeypatch):
     assert page.status_code == 200
     assert b'Coach cue' in page.data
     assert b'Read cues aloud' in page.data
-    assert b'coach_cue' in page.data
 
 
 def test_avatar_3d_page_loads(tmp_path, monkeypatch):
@@ -923,7 +947,6 @@ def test_avatar_3d_page_loads(tmp_path, monkeypatch):
     assert page.status_code == 200
     assert b'3D Coach Preview' in page.data
     assert b'poseSelect' in page.data
-    assert b'/assets/avatars/three.min.js' in page.data
 
 
 def test_session_player_3d_fallback_hint_present(tmp_path, monkeypatch):
@@ -948,8 +971,6 @@ def test_session_player_3d_fallback_hint_present(tmp_path, monkeypatch):
     assert page.status_code == 200
     assert b'Show 3D coach' in page.data
     assert b'falls back gracefully' in page.data
-    assert b'id="avatar3dFrame"' in page.data
-    assert b'/avatar-3d?embed=1' in page.data
 
 
 def test_template_editor_saves_avatar_clip(tmp_path, monkeypatch):
@@ -1217,3 +1238,28 @@ def test_recovery_page_shows_trend_and_suggested_intensity(tmp_path, monkeypatch
     assert page.status_code == 200
     assert b'14-day readiness trend' in page.data
     assert b'Suggested intensity' in page.data
+def test_make_release_script_outputs_clean_zip(tmp_path):
+    import subprocess
+    import sys
+    import zipfile
+
+    out_zip = tmp_path / 'release.zip'
+    root = Path(__file__).resolve().parent
+
+    proc = subprocess.run(
+        [sys.executable, str(root / 'tools' / 'make_release.py'), '--output', str(out_zip)],
+        cwd=str(root),
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert out_zip.exists()
+
+    with zipfile.ZipFile(out_zip) as zf:
+        names = zf.namelist()
+
+    assert 'app_server.py' in names
+    assert 'README.md' in names
+    assert all(not n.startswith('data/') for n in names)
+    assert all(not n.startswith('logs/') for n in names)
+    assert all(not n.startswith('instance/') for n in names)

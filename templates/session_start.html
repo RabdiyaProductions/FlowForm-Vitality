@@ -13,6 +13,8 @@
   <p><strong id="blockTarget"></strong></p>
   <label>Substitute note (optional)</label>
   <textarea id="substituteNote" rows="2" placeholder="Swap exercise / modification..."></textarea>
+  <p class="muted" id="blockDescription"></p>
+  <p><strong id="blockTarget"></strong></p>
   <p>Block <span id="blockIndex">1</span>/{{ session.blocks|length }}</p>
   <p>Time left: <strong><span id="timeLeft">00:00</span></strong></p>
   <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;">
@@ -28,6 +30,19 @@
 <div class="card"><h3>Coach cue</h3><p id="coachCueText"></p><label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="speakToggle" style="width:auto;" {% if avatar.voice_enabled %}checked{% endif %} /> Read cues aloud</label></div>
 
 <div class="card"><label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="show3dToggle" style="width:auto;" /> Show 3D coach</label><p class="muted">3D is optional and falls back gracefully if WebGL is unavailable.</p><div id="avatar3dPanel" style="display:none; margin-top:10px;"><iframe id="avatar3dFrame" title="3D Coach" loading="lazy" style="width:100%;height:320px;border:1px solid #21304f;border-radius:10px;background:#0d1628;"></iframe></div></div>
+
+<div class="card">
+  <h3 style="margin-top:0;">Coach cue</h3>
+  <p class="muted" id="coachPersona">{{ avatar.name }} · guidance: {{ avatar.guidance_level|title }}</p>
+  <p id="coachCueText"></p>
+  <label style="display:flex;align-items:center;gap:8px;">
+    <input type="checkbox" id="speakToggle" style="width:auto;" /> Read cues aloud
+  </label>
+</div>
+
+<div class="card"><h3>Coach cue</h3><p id="coachCueText"></p><label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="speakToggle" style="width:auto;" /> Read cues aloud</label></div>
+
+<div class="card"><label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="show3dToggle" style="width:auto;" /> Show 3D coach</label><p class="muted">3D is optional and falls back gracefully if WebGL is unavailable.</p></div>
 
 <div class="card" id="finishModal" style="display:none;">
   <h3>Complete Session</h3>
@@ -57,6 +72,54 @@ function resetTimerForBlock(b){
   if((b.type||'timed')==='interval'){
     intervalState={phase:'work',roundsDone:0};
     secondsLeft = Math.max(1, Number(b.work_seconds||20));
+}
+
+
+function poseForBlock(block) {
+  const txt = `${sessionData.discipline || ''} ${block.name || ''} ${block.description || ''} ${block.target || ''}`.toLowerCase();
+  if (txt.includes('warm')) return 'warmup';
+  if (txt.includes('squat')) return 'squat';
+  if (txt.includes('hinge') || txt.includes('deadlift')) return 'hinge';
+  if (txt.includes('push') || txt.includes('press') || txt.includes('pushup')) return 'pushup';
+  if (txt.includes('plank') || txt.includes('core')) return 'plank';
+  if (txt.includes('stretch') || txt.includes('mobility') || txt.includes('flex')) return 'stretch';
+  if (txt.includes('breath') || txt.includes('mindful') || txt.includes('recovery')) return 'breathe';
+  return 'idle';
+}
+
+function sync3DForCurrentBlock(block) {
+  const wrap = document.getElementById('coach3dWrap');
+  const toggle = document.getElementById('show3dToggle');
+  const frame = document.getElementById('coach3dFrame');
+  if (!wrap || !toggle || !frame) return;
+  wrap.style.display = toggle.checked ? 'block' : 'none';
+  if (!toggle.checked) return;
+  const pose = poseForBlock(block || {});
+  frame.src = `/avatar-3d?embed=1&pose=${encodeURIComponent(pose)}`;
+}
+
+function render() {
+  const block = blocks[blockIdx] || {name: 'Done', seconds: 0};
+  document.getElementById('blockTitle').textContent = block.name;
+  document.getElementById('blockIndex').textContent = String(Math.min(blockIdx + 1, blocks.length));
+  document.getElementById('timeLeft').textContent = fmt(Math.max(0, secondsLeft));
+  document.getElementById('blockDescription').textContent = block.description || '';
+  document.getElementById('blockTarget').textContent = block.target || '';
+  const cue = block.coach_cue || '';
+  document.getElementById('coachCueText').textContent = cue;
+  const speak = document.getElementById('speakToggle');
+  if (speak && speak.checked && cue && 'speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(new SpeechSynthesisUtterance(cue));
+  }
+
+  // Show or hide the media link if this block has an attached media_id
+  const wrap = document.getElementById('mediaWrap');
+  const btn = document.getElementById('mediaBtn');
+  sync3DForCurrentBlock(block);
+  if (block.media_id) {
+    wrap.style.display = 'block';
+    btn.href = `/media/${block.media_id}`;
   } else {
     secondsLeft = Number(b.seconds||0);
   }
@@ -90,7 +153,18 @@ function sync3DPose(){
     frame.contentWindow.postMessage({type:'avatar-pose', pose}, '*');
   } catch(_) {
     frame.src = src;
+}
+function tickInterval(b){
+  if(secondsLeft>0){ secondsLeft -= 1; return; }
+  if(intervalState.phase==='work'){
+    if((b.rest_seconds||0) > 0){ intervalState.phase='rest'; secondsLeft = Number(b.rest_seconds||0); return; }
+    intervalState.roundsDone += 1;
+    if(intervalState.roundsDone >= Number(b.rounds||1)){ nextBlock(); return; }
+    secondsLeft = Number(b.work_seconds||20); return;
   }
+  intervalState.roundsDone += 1;
+  if(intervalState.roundsDone >= Number(b.rounds||1)){ nextBlock(); return; }
+  intervalState.phase='work'; secondsLeft = Number(b.work_seconds||20);
 }
 
 function tickInterval(b){

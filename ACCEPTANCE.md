@@ -204,7 +204,8 @@
 - import succeeds without duplicating existing media with same `sha256`,
 - template count increases after importing a synthetic/new template,
 - traversal ZIPs are rejected,
-- player page shows the **Open media** button for imported block media.
+- player page shows the **Open media** button for imported block media,
+- Recent events on `/content-packs` include the import/export actions and counts.
 
 ## Codex Preview Readiness Checklist (2026-03-02)
 - [x] Flat repo root; no extra wrapper folder.

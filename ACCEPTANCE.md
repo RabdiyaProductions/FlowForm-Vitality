@@ -65,7 +65,7 @@
 **Accept if**
 - check-in persists and is visible in `/recovery` history
 - readiness badge appears on `/plan/current`
-- when readiness is low, a lighter-template suggestion appears without auto-overwriting the plan
+- when readiness is low, a lighter-template suggestion appears with an **Apply suggestion** action for today
 - safety disclaimer is visible on `/recovery` (not medical advice)
 
 
@@ -205,3 +205,45 @@
 - template count increases after importing a synthetic/new template,
 - traversal ZIPs are rejected,
 - player page shows the **Open media** button for imported block media.
+
+## Codex Preview Readiness Checklist (2026-03-02)
+- [x] Flat repo root; no extra wrapper folder.
+- [x] Root includes `requirements.txt`, `app_server.py`, `run_server.py`, `templates/`, `tools/`, `tests/`.
+- [x] Linux/Codex start path available (`start.sh`, `Procfile`) with bind `0.0.0.0` and env `PORT` support.
+- [x] Windows canonical boot scripts + `_BAT` wrappers remain valid.
+- [x] ZIP artifacts allowed only under `RELEASES/`; guard fails ZIPs elsewhere.
+- [x] Prompt 3 media link behavior retained in session player.
+- [x] Regression tests cover `/templates` and `/content-packs` endpoints.
+- [x] Test harness runs `tools/check_structure.py`, `pytest tests_smoke.py`, `pytest smoke_test.py`.
+
+
+## Library Journey
+**Steps**
+1. Open `/library`.
+2. Filter by discipline + minutes + level.
+3. Click **Preview** for a template and confirm block instructions/targets show.
+4. Click **Start as Manual Session** and complete it.
+5. If a plan exists, click **Add to plan day** from a library card.
+
+**Accept if**
+- `/library` loads with filter controls and template cards,
+- preview displays clear instructions and targets,
+- manual session is created from library action,
+- template can be appended to current plan day list,
+- session completion appears in dashboard analytics.
+
+- [x] Starter pack seeds 35 curated templates (idempotent) across core disciplines, with 30–75 minute sessions and clear block cues.
+- [x] Regenerate Next Week only rewrites upcoming uncompleted days and never removes completion history.
+
+## Interval Session Journey
+**Steps**
+1. Open a session that contains an interval block.
+2. Confirm work/rest rounds countdown runs in the player.
+3. Add a substitution note on at least one block.
+4. Finish the session.
+5. Open session summary.
+
+**Accept if**
+- interval work/rest rounds progress correctly,
+- substitution notes are saved in completion details,
+- summary shows substitutions without errors.

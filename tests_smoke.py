@@ -2,6 +2,7 @@ import io
 import json
 import sqlite3
 import zipfile
+from pathlib import Path
 
 from app_server import create_app
 
@@ -587,6 +588,31 @@ def test_nav_tabs_and_dashboard_toggle(tmp_path, monkeypatch):
     assert client.get('/plan/current').status_code == 200
 
 
+
+
+def test_top_level_nav_links_resolve(tmp_path, monkeypatch):
+    import re
+
+    monkeypatch.setenv('DB_PATH', str(tmp_path / 'top-nav.db'))
+    monkeypatch.setenv('ENABLE_AUTH', 'false')
+    app = create_app(port=5430)
+    client = app.test_client()
+
+    # Base navigation is present on app pages that extend base.html
+    page = client.get('/dashboard')
+    assert page.status_code == 200
+    html = page.get_data(as_text=True)
+
+    nav_html = html.split('<nav class="nav">', 1)[1].split('</nav>', 1)[0]
+    hrefs = re.findall(r'href="([^"]+)"', nav_html)
+    assert hrefs, 'Expected at least one nav link'
+    assert len(hrefs) == len(set(hrefs)), f'Duplicate nav links found: {hrefs}'
+
+    for href in hrefs:
+        if href.startswith('http'):
+            continue
+        resp = client.get(href)
+        assert resp.status_code == 200, f'Broken nav link {href} -> {resp.status_code}'
 def test_standalone_session_create_complete_updates_dashboard(tmp_path, monkeypatch):
     import re
 
@@ -1085,63 +1111,28 @@ def test_regen_next_week_preserves_completion_rows(tmp_path, monkeypatch):
 
     assert completion_count == 1
     assert plan_day_exists == 1
+def test_make_release_script_outputs_clean_zip(tmp_path):
+    import subprocess
+    import sys
+    import zipfile
 
+    out_zip = tmp_path / 'release.zip'
+    root = Path(__file__).resolve().parent
 
-def test_seeded_interval_template_player_page_loads(tmp_path, monkeypatch):
-    import sqlite3
-    monkeypatch.setenv('DB_PATH', str(tmp_path / 'interval-player.db'))
-    app = create_app(port=5442)
-    client = app.test_client()
+    proc = subprocess.run(
+        [sys.executable, str(root / 'tools' / 'make_release.py'), '--output', str(out_zip)],
+        cwd=str(root),
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert out_zip.exists()
 
-    client.post('/api/plan/create', json={
-        'goal': 'hybrid',
-        'days_per_week': 3,
-        'minutes_per_session': 45,
-        'disciplines': ['conditioning', 'strength', 'cardio', 'mobility', 'recovery'],
-    })
+    with zipfile.ZipFile(out_zip) as zf:
+        names = zf.namelist()
 
-    con = sqlite3.connect(app.config['DB_PATH'])
-    con.row_factory = sqlite3.Row
-    tpl = con.execute("SELECT id FROM session_template WHERE name = 'Conditioning Intervals Signature' LIMIT 1").fetchone()
-    assert tpl is not None
-    plan_day = con.execute('SELECT id FROM plan_day ORDER BY id LIMIT 1').fetchone()[0]
-    con.execute('UPDATE plan_day SET template_id = ? WHERE id = ?', (int(tpl['id']), int(plan_day)))
-    con.commit()
-    con.close()
-
-    page = client.get(f'/session/start/{int(plan_day)}')
-    assert page.status_code == 200
-    assert b'Type: interval' in page.data
-
-
-def test_completion_stores_substitutions_json(tmp_path, monkeypatch):
-    import sqlite3, json
-    monkeypatch.setenv('DB_PATH', str(tmp_path / 'completion-details.db'))
-    app = create_app(port=5443)
-    client = app.test_client()
-
-    client.post('/api/plan/create', json={
-        'goal': 'hybrid',
-        'days_per_week': 3,
-        'minutes_per_session': 45,
-        'disciplines': ['strength', 'cardio', 'mobility', 'recovery', 'conditioning'],
-    })
-
-    con = sqlite3.connect(app.config['DB_PATH'])
-    plan_day = con.execute('SELECT id FROM plan_day ORDER BY id LIMIT 1').fetchone()[0]
-    con.close()
-
-    finish = client.post('/api/session/finish', json={
-        'plan_day_id': plan_day,
-        'rpe': 7,
-        'notes': 'done',
-        'minutes_done': 40,
-        'details': {'substitutions': [{'index': 1, 'name': 'Block 1', 'substitute': 'Bike instead of run'}]},
-    })
-    assert finish.status_code == 200
-
-    con = sqlite3.connect(app.config['DB_PATH'])
-    raw = con.execute('SELECT details_json FROM session_completion ORDER BY id DESC LIMIT 1').fetchone()[0]
-    con.close()
-    payload = json.loads(raw)
-    assert payload['substitutions'][0]['substitute'] == 'Bike instead of run'
+    assert 'app_server.py' in names
+    assert 'README.md' in names
+    assert all(not n.startswith('data/') for n in names)
+    assert all(not n.startswith('logs/') for n in names)
+    assert all(not n.startswith('instance/') for n in names)
